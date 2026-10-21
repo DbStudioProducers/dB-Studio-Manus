@@ -1,6 +1,8 @@
 {
   "routes": [
     { "path": "/", "title": "dB Studio — Dashboard" },
+    { "path": "/server", "title": "dB Studio — Servidor desktop" },
+    { "path": "/mobile", "title": "dB Studio — App do músico" },
     { "path": "/mixer", "title": "dB Studio — Mixer" },
     { "path": "/devices", "title": "dB Studio — Dispositivos" },
     { "path": "/mixes", "title": "dB Studio — Mixes Bank" },

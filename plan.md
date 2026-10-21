@@ -55,3 +55,7 @@ Entregar uma primeira versão navegável e funcional do dB Studio que demonstre 
 4. Navegação para dispositivos, mixes, presets, ensaio, relatórios e configurações, com superfícies úteis e estados demonstráveis.
 5. Responsividade para desktop, tablet e mobile, incluindo modo performer.
 6. Documentação de escopo e base técnica para a próxima etapa nativa.
+
+## Vertical 2 — servidor desktop + app mobile demonstrável
+
+A evolução desta etapa mantém o console do técnico em `/` e adiciona o cliente do músico em `/mobile`. O servidor Express ganha um transporte UDP local inicial (`server/udp.ts`) com framing DBAU/1, handshake HELLO/ACK, contagem de pacotes e endpoint de telemetria. A interface mobile demonstra conexão por código, estado da sessão, master protegido, canais pessoais, mute, faders, EQ e diagnóstico. O código de transporte não é apresentado como captura ASIO/Core Audio nem como áudio PCM de produção: ele prepara o contrato e a observabilidade para os adapters nativos seguintes.

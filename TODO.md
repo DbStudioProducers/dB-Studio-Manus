@@ -54,3 +54,13 @@
 - [ ] O caminho futuro deve acomodar engine nativa desktop (ASIO/Core Audio), app mobile com módulos nativos, streaming UDP de baixa latência, WebSocket/TCP, SQLite local, TLS, tokens e estado autoritativo no servidor.
 - [ ] O projeto deve manter manifesto de rotas, configuração de logo e documentação atualizada.
 - [ ] `pnpm check`, build e testes existentes devem permanecer executáveis; falhas devem ser tratadas antes da entrega.
+
+## 9. Vertical conjunta do aplicativo
+
+- [x] O servidor desktop deve continuar disponível no console web e possuir uma rota dedicada `/server`.
+- [x] O aplicativo do músico deve possuir uma rota dedicada `/mobile`, com conexão por código, estado de servidor, palco, latência, qualidade de rede e bateria.
+- [x] O músico deve conseguir controlar master, proteção de volume, mute global, volume individual, mute individual, favoritos e abrir detalhes de canal.
+- [x] O app mobile deve apresentar diagnóstico com latência, perda, buffer, sample rate e recomendação de uso de fones com fio.
+- [x] O servidor deve iniciar um transporte UDP local com framing versionado, handshake HELLO/ACK, contagem de pacotes, clientes e endpoint `/api/udp/status`.
+- [x] A UI deve declarar quando está usando a ponte de Preview e não mascarar a ausência dos adapters nativos ASIO/Core Audio/Oboe/Audio Unit.
+- [x] O manifesto `manus-routes.json` deve incluir `/server` e `/mobile`, e `pnpm check`, testes, build e health check devem permanecer executáveis.

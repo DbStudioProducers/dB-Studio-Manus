@@ -395,6 +395,7 @@ function AppShell({
   onSave: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [, setLocation] = useLocation();
   const go = (next: View) => {
     onView(next);
     setMobileOpen(false);
@@ -502,6 +503,13 @@ function AppShell({
             </div>
           </div>
           <div className="topbar-actions">
+            <button
+              className="performer-link"
+              onClick={() => setLocation("/mobile")}
+              title="Abrir app do músico"
+            >
+              <Smartphone size={15} /> App do músico
+            </button>
             <div className="show-clock">
               <Clock3 size={14} />
               <span>Próximo show</span>
