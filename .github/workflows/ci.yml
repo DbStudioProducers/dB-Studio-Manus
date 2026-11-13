@@ -1,0 +1,69 @@
+name: dB Studio CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: 10.18.0
+  NODE_VERSION: 22
+
+jobs:
+  verify:
+    name: Verify web, server and Expo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck server and web
+        run: pnpm check
+
+      - name: Typecheck Expo
+        run: pnpm --dir mobile typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: End-to-end control and UDP handshake
+        run: pnpm test:e2e:control
+
+      - name: Production web/server build
+        run: pnpm build
+
+      - name: Expo web export
+        run: pnpm --dir mobile exec expo export --platform web
+
+      - name: Upload verification bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbstudio-ci-bundles-${{ github.sha }}
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            dist/**
+            mobile/dist/**

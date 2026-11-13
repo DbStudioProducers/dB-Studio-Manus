@@ -26,3 +26,11 @@
 - [x] Simular o cliente Expo com leitura e escrita de mixagem via HTTP.
 - [x] Validar diagnóstico, handshake `DBAU/1 HELLO/ACK`, contadores de pacotes e reset da mixagem.
 - [x] Encerrar o processo isolado sem deixar serviços órfãos.
+
+## 13. Pipeline CI/CD
+
+- [x] Criar CI para typecheck, testes unitários, E2E HTTP/UDP, build web e export Expo.
+- [x] Criar release nativo por tag/manual para Tauri em Linux/Windows/macOS e EAS Android/iOS.
+- [x] Publicar instaladores e metadados como artefatos do workflow, sem incluir segredos no repositório.
+- [x] Documentar Secrets, configuração EAS, governança de submissão e limitações de validação de áudio.
+- [ ] Conectar o projeto a um repositório GitHub e configurar `EXPO_TOKEN`, credenciais EAS e `projectId` real.

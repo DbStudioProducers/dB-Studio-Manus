@@ -1,0 +1,198 @@
+name: dB Studio Native Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit_mobile:
+        description: Submit Android/iOS builds to their stores after EAS completes
+        required: true
+        default: false
+        type: boolean
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PNPM_VERSION: 10.18.0
+  NODE_VERSION: 22
+
+jobs:
+  desktop:
+    name: Desktop ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_glob: src-tauri/target/release/bundle
+          - os: windows-latest
+            artifact_glob: src-tauri/target/release/bundle
+          - os: macos-latest
+            artifact_glob: src-tauri/target/release/bundle
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify project
+        run: |
+          pnpm check
+          pnpm test
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build Tauri installer
+        run: pnpm native:build:desktop
+
+      - name: Upload desktop installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbstudio-desktop-${{ runner.os }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: ${{ matrix.artifact_glob }}
+
+  mobile:
+    name: Mobile ${{ matrix.platform }} via EAS
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [android, ios]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Expo
+        run: pnpm --dir mobile typecheck
+
+      - name: Authenticate EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build and download EAS artifact
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          EAS_PROFILE: production
+        run: |
+          mkdir -p artifacts/mobile
+          npx eas-cli build --platform "$PLATFORM" --profile "$EAS_PROFILE" --non-interactive --json > /tmp/eas-build.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = '/tmp/eas-build.json';
+          const raw = fs.readFileSync(path, 'utf8');
+          const start = raw.indexOf('[{');
+          const payload = JSON.parse(start >= 0 ? raw.slice(start) : raw);
+          const build = Array.isArray(payload) ? payload[0] : payload;
+          const url = build?.artifacts?.buildUrl;
+          if (!url) throw new Error('EAS não retornou artifacts.buildUrl: ' + raw);
+          fs.writeFileSync('/tmp/eas-artifact-url', url);
+          NODE
+          if [ "$PLATFORM" = "android" ]; then EXT=aab; else EXT=ipa; fi
+          curl --fail --location --retry 3 "$(cat /tmp/eas-artifact-url)" -o "artifacts/mobile/dbstudio-${PLATFORM}.${EXT}"
+
+      - name: Upload mobile installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbstudio-mobile-${{ matrix.platform }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 30
+          path: artifacts/mobile/**
+
+  native-manifest:
+    name: Native release metadata
+    needs: [desktop, mobile]
+    runs-on: ubuntu-latest
+    if: always() && needs.desktop.result == 'success' && needs.mobile.result == 'success'
+    steps:
+      - name: Write release metadata
+        run: |
+          mkdir -p release
+          cat > release/BUILD-INFO.txt <<EOF
+          Project: dB Studio
+          Commit: ${{ github.sha }}
+          Ref: ${{ github.ref }}
+          Desktop: Tauri bundles from Linux, Windows and macOS jobs
+          Mobile: EAS production Android/iOS artifacts
+          Control E2E: required in CI workflow and available via pnpm test:e2e:control
+          Native PCM audio: not included in this release pipeline
+          EOF
+      - name: Upload release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbstudio-native-release-metadata-${{ github.sha }}
+          retention-days: 30
+          path: release/BUILD-INFO.txt
+
+  submit-mobile:
+    name: Submit mobile builds manually
+    needs: [mobile]
+    if: github.event_name == 'workflow_dispatch' && inputs.submit_mobile == true && needs.mobile.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Authenticate EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Submit latest production builds
+        run: npx eas-cli submit --platform all --profile production --non-interactive
