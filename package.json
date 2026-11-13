@@ -13,7 +13,12 @@
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "db:migrate": "drizzle-kit migrate",
     "dev:static": "vite --host 0.0.0.0 --port ${PORT:-3000} --strictPort",
-    "build:static": "vite build"
+    "build:static": "vite build",
+    "native:desktop:dev": "cargo tauri dev --manifest-path src-tauri/Cargo.toml",
+    "native:desktop:build": "cargo tauri build --manifest-path src-tauri/Cargo.toml",
+    "native:mobile:install": "pnpm --dir mobile install",
+    "native:mobile:typecheck": "pnpm --dir mobile typecheck",
+    "native:mobile:start": "pnpm --dir mobile start"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
