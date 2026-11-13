@@ -5,6 +5,7 @@
 - [x] Criar app Expo/React Native em `mobile/` com entrypoint local, configuração Android/iOS, identificadores, permissões e assets de marca.
 - [x] Implementar no app nativo a tela do músico com conexão ao servidor, master, mute global, mute por canal e telemetria.
 - [x] Integrar o app mobile ao workspace pnpm e validar `pnpm --dir mobile typecheck` e export web.
+- [x] Criar scripts reproduzíveis para build Tauri, build local Android/iOS, build remoto EAS e coleta com checksums.
 - [ ] Compilar o shell Tauri em um host com Rust e toolchain de plataforma.
 - [ ] Gerar APK/AAB com Android SDK ou EAS Build e credenciais de assinatura.
 - [ ] Gerar IPA/TestFlight em macOS/Xcode com certificados e provisioning.

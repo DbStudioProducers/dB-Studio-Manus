@@ -5,6 +5,8 @@
 # Build outputs
 dist/
 build/
+release-native/
+src-tauri/target/
 *.dist
 
 # Environment variables

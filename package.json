@@ -18,7 +18,12 @@
     "native:desktop:build": "cargo tauri build --manifest-path src-tauri/Cargo.toml",
     "native:mobile:install": "pnpm --dir mobile install",
     "native:mobile:typecheck": "pnpm --dir mobile typecheck",
-    "native:mobile:start": "pnpm --dir mobile start"
+    "native:mobile:start": "pnpm --dir mobile start",
+    "native:build": "bash scripts/build_native.sh all",
+    "native:build:desktop": "bash scripts/build_native.sh desktop",
+    "native:build:android": "bash scripts/build_native.sh android",
+    "native:build:ios": "bash scripts/build_native.sh ios",
+    "native:package": "bash scripts/package_native.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

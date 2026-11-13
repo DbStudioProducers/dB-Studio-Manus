@@ -2,11 +2,11 @@
 
 ## Estrutura criada
 
-`src-tauri/` contém o shell desktop Tauri 2 para Windows, macOS e Linux. Ele reutiliza `dist/public`, preserva o servidor Express para a API local e expõe o comando nativo `desktop_status`.
+`src-tauri/` contém o shell desktop Tauri 2 para Windows, macOS e Linux. Ele reutiliza `dist/public`, preserva o Express como plano de controle local e expõe o comando nativo `desktop_status`.
 
 `mobile/` contém o cliente Expo/React Native para Android e iOS. Ele possui identificadores nativos, ícones, splash, permissões de rede local/foreground audio e uma tela funcional do músico com telemetria HTTP ao servidor.
 
-## Comandos
+## Comandos de desenvolvimento
 
 Na raiz:
 
@@ -26,13 +26,20 @@ pnpm ios
 pnpm export:web
 ```
 
+## Scripts de release nativo
+
+Os comandos oficiais estão documentados em `native-build-release.md`. `scripts/build_native.sh` valida pré-requisitos e executa Tauri, Expo local ou EAS conforme o alvo. `scripts/package_native.sh` coleta somente artefatos reais (`.AppImage`, `.deb`, `.rpm`, `.msi`, `.exe`, `.dmg`, `.apk`, `.aab`, `.ipa` e `.xcarchive`), gera metadados e valida SHA-256. Se nenhuma toolchain ou nenhum artefato existir, o script termina com erro explícito.
+
+```bash
+pnpm native:build:desktop
+DBSTUDIO_USE_EAS=1 pnpm native:build:android
+DBSTUDIO_USE_EAS=1 pnpm native:build:ios
+pnpm native:package ./release-native
+```
+
 ## Estado comprovado
 
-- O typecheck do projeto web e do app Expo passa.
-- O export web do Expo passa e gera `mobile/dist`.
-- O shell Tauri está configurado, mas não foi compilado neste Sandbox porque não há `rustc`/`cargo`.
-- APK/AAB exigem Android SDK/ADB ou EAS Build com credenciais.
-- iOS exige macOS/Xcode, certificados e provisioning.
+O typecheck do projeto web e do app Expo passa; o export web do Expo também passa e gera `mobile/dist`. O shell Tauri está configurado, mas a compilação depende de Rust/Cargo. APK/AAB exigem Android SDK/ADB ou EAS Build com credenciais. iOS exige macOS/Xcode, certificados e provisioning.
 
 ## Limite técnico importante
 
