@@ -64,3 +64,13 @@ pnpm native:package ./release-native
 ```
 
 A camada de áudio nativo — ASIO/Core Audio no servidor e Oboe/Audio Unit no mobile — não é gerada por estes scripts; ela exige implementação e validação separadas.
+
+## E2E do streaming de controle
+
+Para validar o contrato usado pelo cliente Expo contra uma instância real do servidor, execute:
+
+```bash
+pnpm test:e2e:control
+```
+
+O teste inicia o servidor em portas isoladas, consulta `/api/mix`, aplica alterações de canal/master/mute, valida `/api/diagnostics`, envia um pacote `DBAU/1 HELLO` e exige `ACK`, e por fim restaura a mixagem. O teste usa um arquivo de estado temporário e não altera a mixagem do Preview.

@@ -23,7 +23,8 @@
     "native:build:desktop": "bash scripts/build_native.sh desktop",
     "native:build:android": "bash scripts/build_native.sh android",
     "native:build:ios": "bash scripts/build_native.sh ios",
-    "native:package": "bash scripts/package_native.sh"
+    "native:package": "bash scripts/package_native.sh",
+    "test:e2e:control": "node scripts/e2e_control_stream.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
