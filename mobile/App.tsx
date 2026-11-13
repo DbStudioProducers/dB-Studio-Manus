@@ -18,6 +18,12 @@ type Channel = {
   color: string;
 };
 
+type MixSnapshot = {
+  master: number;
+  globalMute: boolean;
+  channels: Channel[];
+};
+
 const initialChannels: Channel[] = [
   { id: 1, name: "Vocal principal", level: 78, muted: false, color: "#ff8e86" },
   { id: 2, name: "Vocal 2", level: 58, muted: false, color: "#b6a1ff" },
@@ -56,16 +62,58 @@ export default function App() {
     }
   };
 
+  const refreshMix = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/mix`);
+      if (!response.ok) throw new Error("mix unavailable");
+      const snapshot = (await response.json()) as MixSnapshot;
+      setMaster(snapshot.master);
+      setGlobalMute(snapshot.globalMute);
+      setChannels(snapshot.channels);
+    } catch {
+      // Mantém o último estado local se a telemetria responder antes da mixagem.
+    }
+  };
+
   useEffect(() => {
     void refreshStatus();
+    void refreshMix();
   }, []);
 
   const toggleMute = (id: number) => {
+    const channel = channels.find(item => item.id === id);
+    if (!channel) return;
+    const muted = !channel.muted;
     setChannels(current =>
       current.map(channel =>
-        channel.id === id ? { ...channel, muted: !channel.muted } : channel
+        channel.id === id ? { ...channel, muted } : channel
       )
     );
+    void fetch(`${API_BASE}/api/mix/channels/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ muted }),
+    }).catch(() => undefined);
+  };
+
+  const toggleGlobalMute = () => {
+    const next = !globalMute;
+    setGlobalMute(next);
+    void fetch(`${API_BASE}/api/mix/global-mute`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ globalMute: next }),
+    }).catch(() => undefined);
+  };
+
+  const updateMaster = (value: number) => {
+    const next = Math.max(0, Math.min(100, value));
+    setMaster(next);
+    void fetch(`${API_BASE}/api/mix/master`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ master: next }),
+    }).catch(() => undefined);
   };
 
   return (
@@ -83,7 +131,10 @@ export default function App() {
           <View style={styles.headerSpacer} />
           <Pressable
             style={styles.headerButton}
-            onPress={() => void refreshStatus()}
+            onPress={() => {
+              void refreshStatus();
+              void refreshMix();
+            }}
           >
             <Text style={styles.headerButtonText}>↻</Text>
           </Pressable>
@@ -115,7 +166,10 @@ export default function App() {
               />
               <Pressable
                 style={styles.primaryButton}
-                onPress={() => void refreshStatus()}
+                onPress={() => {
+                  void refreshStatus();
+                  void refreshMix();
+                }}
               >
                 <Text style={styles.primaryText}>Conectar</Text>
               </Pressable>
@@ -148,6 +202,13 @@ export default function App() {
           </View>
           <View style={styles.sliderRow}>
             <Text style={styles.sliderValue}>-∞</Text>
+            <Pressable
+              style={styles.headerButton}
+              onPress={() => updateMaster(master - 5)}
+              accessibilityLabel="Diminuir master"
+            >
+              <Text style={styles.headerButtonText}>−</Text>
+            </Pressable>
             <View style={styles.sliderTrack}>
               <View style={[styles.sliderFill, { width: `${master}%` }]} />
               <View
@@ -157,11 +218,18 @@ export default function App() {
                 ]}
               />
             </View>
+            <Pressable
+              style={styles.headerButton}
+              onPress={() => updateMaster(master + 5)}
+              accessibilityLabel="Aumentar master"
+            >
+              <Text style={styles.headerButtonText}>+</Text>
+            </Pressable>
           </View>
           <View style={styles.rowBetween}>
             <Text style={styles.mutedText}>◉ 78% bateria</Text>
             <Text style={styles.mutedText}>⌁ {latency ?? "--"} ms</Text>
-            <Pressable onPress={() => setGlobalMute(value => !value)}>
+            <Pressable onPress={toggleGlobalMute}>
               <Text style={[styles.muteText, globalMute && styles.danger]}>
                 {globalMute ? "MUDO ATIVO" : "MUTE GLOBAL"}
               </Text>

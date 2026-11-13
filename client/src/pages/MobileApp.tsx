@@ -32,6 +32,13 @@ type MobileChannel = {
   icon: "mic" | "music";
 };
 
+type MixSnapshot = {
+  revision: number;
+  master: number;
+  globalMute: boolean;
+  channels: MobileChannel[];
+};
+
 const initialChannels: MobileChannel[] = [
   {
     id: 1,
@@ -230,6 +237,27 @@ export default function MobileApp() {
   const [serverCode, setServerCode] = useState("DB-4821");
   const [latency, setLatency] = useState(12);
   const [packetLoss, setPacketLoss] = useState(0.2);
+  const [mixRevision, setMixRevision] = useState(1);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/mix")
+      .then(response => {
+        if (!response.ok) throw new Error("mix");
+        return response.json() as Promise<MixSnapshot>;
+      })
+      .then(snapshot => {
+        if (cancelled) return;
+        setMixRevision(snapshot.revision);
+        setMaster(snapshot.master);
+        setGlobalMute(snapshot.globalMute);
+        setChannels(snapshot.channels);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -253,18 +281,71 @@ export default function MobileApp() {
     () => channels.filter(channel => !channel.muted).length,
     [channels]
   );
-  const toggleMute = (id: number) =>
+  const updateChannel = async (id: number, patch: Partial<MobileChannel>) => {
+    const response = await fetch(`/api/mix/channels/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!response.ok) throw new Error("channel update");
+    const snapshot = (await response.json()) as MixSnapshot;
+    setMixRevision(snapshot.revision);
+    setChannels(snapshot.channels);
+  };
+
+  const toggleMute = (id: number) => {
+    const channel = channels.find(item => item.id === id);
+    if (!channel) return;
     setChannels(current =>
-      current.map(channel =>
-        channel.id === id ? { ...channel, muted: !channel.muted } : channel
+      current.map(item =>
+        item.id === id ? { ...item, muted: !item.muted } : item
       )
     );
-  const updateLevel = (id: number, level: number) =>
+    void updateChannel(id, { muted: !channel.muted }).catch(() =>
+      toast.error("Não foi possível salvar o mute no servidor")
+    );
+  };
+
+  const updateLevel = (id: number, level: number) => {
     setChannels(current =>
       current.map(channel =>
         channel.id === id ? { ...channel, level } : channel
       )
     );
+    void updateChannel(id, { level }).catch(() =>
+      toast.error("Não foi possível salvar o fader no servidor")
+    );
+  };
+
+  const updateMaster = (masterValue: number) => {
+    setMaster(masterValue);
+    void fetch("/api/mix/master", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ master: masterValue }),
+    })
+      .then(response => {
+        if (!response.ok) throw new Error("master update");
+        return response.json() as Promise<MixSnapshot>;
+      })
+      .then(snapshot => setMixRevision(snapshot.revision))
+      .catch(() => toast.error("Não foi possível salvar o master no servidor"));
+  };
+
+  const updateGlobalMute = (muted: boolean) => {
+    setGlobalMute(muted);
+    void fetch("/api/mix/global-mute", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ globalMute: muted }),
+    })
+      .then(response => {
+        if (!response.ok) throw new Error("mute update");
+        return response.json() as Promise<MixSnapshot>;
+      })
+      .then(snapshot => setMixRevision(snapshot.revision))
+      .catch(() => toast.error("Não foi possível salvar o mute global"));
+  };
 
   const connect = async () => {
     try {
@@ -369,7 +450,7 @@ export default function MobileApp() {
               min="0"
               max="100"
               value={master}
-              onChange={event => setMaster(Number(event.target.value))}
+              onChange={event => updateMaster(Number(event.target.value))}
               aria-label="Volume master"
             />
             <div className="mobile-master-scale">
@@ -388,7 +469,7 @@ export default function MobileApp() {
             </span>
             <button
               className={globalMute ? "danger" : ""}
-              onClick={() => setGlobalMute(value => !value)}
+              onClick={() => updateGlobalMute(!globalMute)}
             >
               {globalMute ? "MUDO GLOBAL ATIVO" : "MUTE GLOBAL"}
             </button>

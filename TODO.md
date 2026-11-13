@@ -10,3 +10,12 @@
 - [ ] Gerar APK/AAB com Android SDK ou EAS Build e credenciais de assinatura.
 - [ ] Gerar IPA/TestFlight em macOS/Xcode com certificados e provisioning.
 - [ ] Implementar áudio PCM nativo com ASIO/Core Audio/Oboe/Audio Unit; a tela atual ainda usa HTTP apenas para telemetria.
+
+## 11. Controle de mixagem sincronizado
+
+- [x] Criar estado autoritativo de mixagem no servidor com master, mute global, canais, revisão e validação de limites.
+- [x] Expor leitura, diagnóstico, atualização de master, mute global, mute por canal e reset em endpoints REST locais.
+- [x] Conectar o cliente web/mobile aos endpoints para carregar e salvar alterações de mixagem.
+- [x] Conectar o cliente Expo nativo ao snapshot e aos comandos de mute/master do servidor.
+- [x] Validar a vertical com typecheck, 10 testes automatizados, build web e smoke test HTTP.
+- [x] Persistir o snapshot em arquivo JSON local configurável por `MIX_STATE_FILE`, sobrevivendo ao reinício do servidor; migrar para SQLite continua opcional para múltiplos usuários.
