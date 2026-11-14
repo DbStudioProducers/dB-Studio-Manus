@@ -23,7 +23,7 @@ build_desktop() {
   cargo tauri --version >/dev/null 2>&1 || die "Tauri CLI ausente. Instale-a com 'cargo install tauri-cli --version '^2'' ou use a ferramenta oficial da sua plataforma."
   (cd "$ROOT_DIR" && pnpm check && pnpm test && pnpm build)
   log "Gerando bundle Tauri"
-  (cd "$ROOT_DIR" && cargo tauri build --manifest-path src-tauri/Cargo.toml)
+  (cd "$ROOT_DIR/src-tauri" && cargo tauri build)
 }
 
 prepare_mobile() {
