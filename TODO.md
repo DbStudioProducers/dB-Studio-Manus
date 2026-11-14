@@ -62,3 +62,12 @@
 - [x] Adicionar smoke test C++ ao CI e executar com `g++` no Sandbox.
 - [ ] Abrir dispositivos reais, instalar callbacks e ligar ring buffers em hosts Windows/macOS/Android/iOS.
 - [ ] Validar latência, xruns, desconexão e sample rate efetivo com hardware real.
+
+## 17. Runners de hardware nativo no CI
+
+- [x] Criar workflow manual para Windows/ASIO, macOS/Core Audio, iOS/Audio Unit e Android/Oboe.
+- [x] Adicionar preflight de SDK, dispositivo conectado, autorização e labels self-hosted.
+- [x] Separar preflight portátil de execução de driver real com `run_driver` explícito.
+- [x] Documentar labels, variáveis, isolamento e procedimento de registro dos runners.
+- [ ] Registrar os quatro runners self-hosted, conectar hardware físico e configurar variáveis do repositório.
+- [ ] Implementar e publicar os binários reais de smoke test para cada backend.
