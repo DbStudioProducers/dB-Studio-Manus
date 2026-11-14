@@ -1,6 +1,8 @@
 # dB Studio Mobile — Expo / React Native
 
-Cliente nativo do músico para Android e iOS. A primeira tela implementa conexão ao servidor local, master, mute global, canais pessoais e leitura de `/api/udp/status`.
+Cliente nativo do músico para Android e iOS. A tela principal implementa conexão ao servidor local, obtenção de token temporário em `/api/udp/join`, leitura periódica de `/api/udp/status` e `/api/mix`, master, mute global, mute por canal e atualizações de mixagem protegidas por `revision`.
+
+O app já está integrado ao plano de controle HTTP do servidor desktop. O streaming PCM/UDP ainda depende da ponte nativa por plataforma: o token retornado por `/api/udp/join` deve ser usado pelo módulo Audio Unit/Oboe no telefone para enviar o HELLO e iniciar o fluxo DBAU/1 autenticado. A integração HTTP não deve ser interpretada como áudio ponta a ponta validado.
 
 ## Desenvolvimento
 

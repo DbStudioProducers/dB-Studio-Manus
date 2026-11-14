@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   SafeAreaView,
@@ -19,9 +19,20 @@ type Channel = {
 };
 
 type MixSnapshot = {
+  musician: string;
+  mixName: string;
   master: number;
   globalMute: boolean;
+  revision: number;
   channels: Channel[];
+};
+
+type UdpJoinResponse = {
+  state: "offline" | "listening" | "degraded";
+  port: number;
+  protocol: "DBAU/1";
+  sessionToken: string;
+  tokenTtlSeconds: number;
 };
 
 const initialChannels: Channel[] = [
@@ -33,13 +44,16 @@ const initialChannels: Channel[] = [
   { id: 6, name: "Click", level: 32, muted: false, color: "#78e0a2" },
 ];
 
-const API_BASE =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:3000";
+const API_BASE = (
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:3000"
+).replace(/\/$/, "");
 
 export default function App() {
   const [serverCode, setServerCode] = useState("DB-4821");
   const [connected, setConnected] = useState(false);
   const [latency, setLatency] = useState<number | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
   const [master, setMaster] = useState(72);
   const [globalMute, setGlobalMute] = useState(false);
   const [channels, setChannels] = useState(initialChannels);
@@ -49,20 +63,21 @@ export default function App() {
     [channels]
   );
 
-  const refreshStatus = async () => {
+  const refreshStatus = useCallback(async () => {
+    const startedAt = Date.now();
     try {
       const response = await fetch(`${API_BASE}/api/udp/status`);
       if (!response.ok) throw new Error("server unavailable");
       const payload = (await response.json()) as { state: string };
       setConnected(payload.state === "listening");
-      setLatency(payload.state === "listening" ? 12 : null);
+      setLatency(payload.state === "listening" ? Date.now() - startedAt : null);
     } catch {
       setConnected(false);
       setLatency(null);
     }
-  };
+  }, []);
 
-  const refreshMix = async () => {
+  const refreshMix = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE}/api/mix`);
       if (!response.ok) throw new Error("mix unavailable");
@@ -70,15 +85,58 @@ export default function App() {
       setMaster(snapshot.master);
       setGlobalMute(snapshot.globalMute);
       setChannels(snapshot.channels);
+      setRevision(snapshot.revision);
     } catch {
       // Mantém o último estado local se a telemetria responder antes da mixagem.
     }
-  };
+  }, []);
+
+  const connectToServer = useCallback(async () => {
+    try {
+      const startedAt = Date.now();
+      const response = await fetch(`${API_BASE}/api/udp/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ joinCode: serverCode, musician: "Rafa" }),
+      });
+      if (!response.ok) throw new Error("join rejected");
+      const payload = (await response.json()) as UdpJoinResponse;
+      setSessionToken(payload.sessionToken);
+      setConnected(payload.state === "listening");
+      setLatency(Date.now() - startedAt);
+      await refreshMix();
+    } catch {
+      setConnected(false);
+      setSessionToken(null);
+      setLatency(null);
+    }
+  }, [refreshMix, serverCode]);
 
   useEffect(() => {
     void refreshStatus();
     void refreshMix();
-  }, []);
+    const interval = setInterval(() => {
+      void refreshStatus();
+      if (sessionToken) void refreshMix();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [refreshMix, refreshStatus, sessionToken]);
+
+  const patchMix = async (path: string, body: Record<string, unknown>) => {
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, revision }),
+    });
+    if (response.status === 409) {
+      await refreshMix();
+      return null;
+    }
+    if (!response.ok) throw new Error("mix update failed");
+    const snapshot = (await response.json()) as MixSnapshot;
+    setRevision(snapshot.revision);
+    return snapshot;
+  };
 
   const toggleMute = (id: number) => {
     const channel = channels.find(item => item.id === id);
@@ -89,31 +147,25 @@ export default function App() {
         channel.id === id ? { ...channel, muted } : channel
       )
     );
-    void fetch(`${API_BASE}/api/mix/channels/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ muted }),
-    }).catch(() => undefined);
+    void patchMix(`/api/mix/channels/${id}`, { muted }).catch(() => {
+      void refreshMix();
+    });
   };
 
   const toggleGlobalMute = () => {
     const next = !globalMute;
     setGlobalMute(next);
-    void fetch(`${API_BASE}/api/mix/global-mute`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ globalMute: next }),
-    }).catch(() => undefined);
+    void patchMix("/api/mix/global-mute", { globalMute: next }).catch(() => {
+      void refreshMix();
+    });
   };
 
   const updateMaster = (value: number) => {
     const next = Math.max(0, Math.min(100, value));
     setMaster(next);
-    void fetch(`${API_BASE}/api/mix/master`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ master: next }),
-    }).catch(() => undefined);
+    void patchMix("/api/mix/master", { master: next }).catch(() => {
+      void refreshMix();
+    });
   };
 
   return (
@@ -167,8 +219,7 @@ export default function App() {
               <Pressable
                 style={styles.primaryButton}
                 onPress={() => {
-                  void refreshStatus();
-                  void refreshMix();
+                  void connectToServer();
                 }}
               >
                 <Text style={styles.primaryText}>Conectar</Text>
@@ -292,7 +343,9 @@ export default function App() {
           <Text style={styles.mutedText}>
             DBAU/1 ·{" "}
             {connected
-              ? "ponte local ativa"
+              ? sessionToken
+                ? "controle autenticado ativo"
+                : "servidor acessível; sessão pendente"
               : "conecte ao servidor para telemetria"}
           </Text>
         </View>
