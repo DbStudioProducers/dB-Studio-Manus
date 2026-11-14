@@ -12,6 +12,7 @@ const udpPort = Number(process.env.E2E_UDP_PORT || 5517);
 const base = `http://127.0.0.1:${port}`;
 const stateDir = await mkdtemp(join(tmpdir(), "dbstudio-e2e-"));
 const stateFile = join(stateDir, "mix-state.json");
+const authFile = join(stateDir, "users.json");
 let child;
 
 function assert(condition, message) {
@@ -113,6 +114,7 @@ async function main() {
         PORT: String(port),
         UDP_AUDIO_PORT: String(udpPort),
         MIX_STATE_FILE: stateFile,
+        LOCAL_AUTH_FILE: authFile,
       },
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
@@ -129,9 +131,27 @@ async function main() {
   );
   assert(status.port === udpPort, `UDP usa porta inesperada: ${status.port}`);
 
+  await json("/api/auth/setup", {
+    method: "POST",
+    body: JSON.stringify({
+      username: "tech",
+      password: "correct-horse-battery",
+      displayName: "Técnico E2E",
+    }),
+  });
+  const login = await json("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ username: "tech", password: "correct-horse-battery", deviceId: "e2e-runner" }),
+  });
+  const authHeaders = { Authorization: `Bearer ${login.token}` };
+
   const initial = await json("/api/mix");
   assert(initial.channels.length === 6, "snapshot Expo não possui 6 canais");
-  const session = await json("/api/udp/join", { method: "POST", body: "{}" });
+  const session = await json("/api/udp/join", {
+    method: "POST",
+    headers: authHeaders,
+    body: "{}",
+  });
   assert(
     typeof session.sessionToken === "string" &&
       session.sessionToken.length === 64,
@@ -140,6 +160,7 @@ async function main() {
 
   const channel = await json("/api/mix/channels/1", {
     method: "PATCH",
+    headers: authHeaders,
     body: JSON.stringify({ level: 91, muted: true }),
   });
   assert(
@@ -153,17 +174,19 @@ async function main() {
 
   const master = await json("/api/mix/master", {
     method: "PATCH",
+    headers: authHeaders,
     body: JSON.stringify({ master: 64 }),
   });
   assert(master.master === 64, "master não foi aplicado");
 
   const globalMute = await json("/api/mix/global-mute", {
     method: "PATCH",
+    headers: authHeaders,
     body: JSON.stringify({ globalMute: true }),
   });
   assert(globalMute.globalMute === true, "mute global não foi aplicado");
 
-  const diagnostics = await json("/api/diagnostics");
+  const diagnostics = await json("/api/diagnostics", { headers: authHeaders });
   assert(
     diagnostics.mix.master === 64,
     "diagnóstico não reflete o master do cliente"
@@ -244,7 +267,11 @@ async function main() {
     "servidor não rejeitou versão ou token UDP inválidos"
   );
 
-  const reset = await json("/api/mix/reset", { method: "POST", body: "{}" });
+  const reset = await json("/api/mix/reset", {
+    method: "POST",
+    headers: authHeaders,
+    body: "{}",
+  });
   assert(reset.master === initial.master, "reset não restaurou master");
   assert(reset.globalMute === false, "reset não desativou mute global");
   assert(

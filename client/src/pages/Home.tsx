@@ -49,7 +49,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 
@@ -2085,9 +2085,164 @@ function Settings() {
               </button>
             </div>
           </div>
+          <LocalUsersPanel />
         </section>
       </div>
     </>
+  );
+}
+
+type LocalUser = {
+  id: string;
+  username: string;
+  displayName: string;
+  role: "technician" | "musician";
+  mixId: string | null;
+  deviceId: string | null;
+  enabled: boolean;
+};
+
+function LocalUsersPanel() {
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [token, setToken] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : window.localStorage.getItem("dbstudio.tech.token") ?? ""
+  );
+  const [users, setUsers] = useState<LocalUser[]>([]);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [deviceId, setDeviceId] = useState("");
+  const [message, setMessage] = useState("");
+
+  const loadUsers = async (authToken: string) => {
+    const response = await fetch("/api/auth/users", {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!response.ok) throw new Error("sessão do técnico expirada");
+    const payload = (await response.json()) as { users: LocalUser[] };
+    setUsers(payload.users);
+  };
+
+  useEffect(() => {
+    void fetch("/api/auth/status")
+      .then(response => response.json() as Promise<{ setupRequired: boolean }>)
+      .then(payload => setSetupRequired(payload.setupRequired))
+      .catch(() => setMessage("Servidor local indisponível"));
+    if (token) void loadUsers(token).catch(() => setToken(""));
+  }, [token]);
+
+  const saveToken = (next: string) => {
+    setToken(next);
+    window.localStorage.setItem("dbstudio.tech.token", next);
+  };
+
+  const loginOrSetup = async () => {
+    setMessage("");
+    try {
+      const endpoint = setupRequired ? "/api/auth/setup" : "/api/auth/login";
+      const body = setupRequired
+        ? { username, password, displayName }
+        : { username, password, deviceId: "desktop-technician" };
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const created = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(created.error ?? "não foi possível autenticar");
+      const loginResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, deviceId: "desktop-technician" }),
+      });
+      const login = (await loginResponse.json()) as { token?: string; error?: string };
+      if (!loginResponse.ok || !login.token) throw new Error(login.error ?? "login recusado");
+      saveToken(login.token);
+      setSetupRequired(false);
+      setPassword("");
+      setMessage("Técnico autenticado");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "falha de autenticação");
+    }
+  };
+
+  const createMusician = async () => {
+    try {
+      const response = await fetch("/api/auth/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          username,
+          password,
+          displayName,
+          deviceId: deviceId || undefined,
+          mixId: "mix-01",
+          role: "musician",
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "não foi possível criar o usuário");
+      setUsername("");
+      setPassword("");
+      setDisplayName("");
+      setDeviceId("");
+      setMessage("Usuário criado e pronto para o dispositivo");
+      await loadUsers(token);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "falha ao criar usuário");
+    }
+  };
+
+  return (
+    <div className="settings-section">
+      <div className="settings-section-head">
+        <div>
+          <span className="eyebrow">ACESSO OFFLINE</span>
+          <h2>Usuários e dispositivos autorizados</h2>
+        </div>
+        <span className="settings-status"><StatusDot /> Wi-Fi local</span>
+      </div>
+      {!token ? (
+        <div className="setting-row">
+          <div>
+            <strong>{setupRequired ? "Criar técnico principal" : "Entrar como técnico"}</strong>
+            <span>{setupRequired ? "Faça isso no primeiro uso do Desktop." : "Somente o técnico pode cadastrar músicos."}</span>
+          </div>
+          <div className="settings-form-row">
+            <input className="code-input" value={username} onChange={event => setUsername(event.target.value)} placeholder="usuário" />
+            <input className="code-input" type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="senha (8+)" />
+            {setupRequired && <input className="code-input" value={displayName} onChange={event => setDisplayName(event.target.value)} placeholder="nome" />}
+            <button className="primary-button" onClick={() => void loginOrSetup()}>{setupRequired ? "Criar técnico" : "Entrar"}</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="setting-row">
+            <div>
+              <strong>Cadastrar músico</strong>
+              <span>O usuário será ligado ao primeiro dispositivo que fizer login, se o ID ficar vazio.</span>
+            </div>
+            <div className="settings-form-row">
+              <input className="code-input" value={username} onChange={event => setUsername(event.target.value)} placeholder="usuário" />
+              <input className="code-input" type="password" value={password} onChange={event => setPassword(event.target.value)} placeholder="senha (8+)" />
+              <input className="code-input" value={displayName} onChange={event => setDisplayName(event.target.value)} placeholder="nome" />
+              <input className="code-input" value={deviceId} onChange={event => setDeviceId(event.target.value)} placeholder="ID do dispositivo (opcional)" />
+              <button className="primary-button" onClick={() => void createMusician()}>Autorizar</button>
+            </div>
+          </div>
+          <div className="setting-row">
+            <div><strong>Usuários cadastrados</strong><span>Vínculo e status do dispositivo.</span></div>
+            <div>{users.map(user => <div key={user.id} className="user-row"><strong>{user.displayName}</strong><span>{user.username} · {user.role} · {user.deviceId ?? "aguardando dispositivo"} · {user.enabled ? "ativo" : "bloqueado"}</span></div>)}</div>
+          </div>
+        </>
+      )}
+      {message && <span className="settings-status">{message}</span>}
+    </div>
   );
 }
 

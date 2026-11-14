@@ -78,5 +78,13 @@
 - [x] Medir p50, p95, p99, máximo e orçamento de callback, com falha acima de 80% do orçamento.
 - [x] Executar no Sandbox: no caso de 128 frames, p99 de 0,0831 ms contra orçamento de 2,6667 ms.
 - [x] Adicionar o benchmark ao CI comum e aos quatro jobs de hardware.
+
+## 19. Autorização local de dispositivos
+
+- [x] Criar o primeiro usuário técnico no Desktop com senha derivada por `scrypt` e persistência local fora do Git.
+- [x] Permitir que o técnico cadastre músicos, mix individual e `deviceId` autorizado pela tela de Configurações.
+- [x] Exigir login do músico no app Expo e na experiência mobile web antes do join UDP e dos comandos de mixagem.
+- [x] Vincular o primeiro dispositivo do músico e rejeitar login posterior de outro dispositivo.
+- [ ] Implementar as integrações nativas de áudio e validar os instaladores nos runners físicos.
 - [x] Consultar o GitHub: o repositório ainda possui zero runners self-hosted registrados.
 - [ ] Reexecutar em Windows/macOS/iPhone/Android físicos e medir latência ponta a ponta com loopback, xruns, dropouts e jitter.
