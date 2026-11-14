@@ -1,5 +1,5 @@
 import dgram from "node:dgram";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 const MAGIC = Buffer.from("DBAU");
 const VERSION = 1;
@@ -26,6 +26,7 @@ type ClientKey = string;
 type ClientSession = {
   highestSequence: number;
   lastSeenAt: string;
+  token: Buffer;
 };
 
 function readPacket(message: Buffer) {
@@ -61,6 +62,7 @@ export class UdpAudioTransport {
   private readonly enabled: boolean;
   private readonly port: number;
   private readonly clients = new Map<ClientKey, ClientSession>();
+  private readonly pendingTokens = new Map<string, number>();
   private packetsReceived = 0;
   private packetsSent = 0;
   private audioPackets = 0;
@@ -137,6 +139,12 @@ export class UdpAudioTransport {
     return `DB-${randomBytes(2).toString("hex").toUpperCase()}`;
   }
 
+  createSessionToken() {
+    const token = randomBytes(32);
+    this.pendingTokens.set(token.toString("hex"), Date.now() + 5 * 60_000);
+    return token.toString("hex");
+  }
+
   private handleMessage(message: Buffer, remote: dgram.RemoteInfo) {
     const packet = readPacket(message);
     if (!packet) {
@@ -149,9 +157,22 @@ export class UdpAudioTransport {
     this.lastPacketAt = new Date().toISOString();
 
     if (packet.type === HELLO) {
+      if (packet.payload.length !== 32) {
+        this.invalidPackets += 1;
+        return;
+      }
+      const tokenKey = packet.payload.toString("hex");
+      const expiresAt = this.pendingTokens.get(tokenKey);
+      if (!expiresAt || expiresAt < Date.now()) {
+        this.invalidPackets += 1;
+        this.pendingTokens.delete(tokenKey);
+        return;
+      }
+      this.pendingTokens.delete(tokenKey);
       this.clients.set(client, {
         highestSequence: packet.sequence,
         lastSeenAt: this.lastPacketAt,
+        token: Buffer.from(packet.payload),
       });
       const ack = makePacket(ACK, packet.sequence, packet.timestamp);
       this.socket.send(ack, remote.port, remote.address, error => {
@@ -161,7 +182,21 @@ export class UdpAudioTransport {
 
     if (packet.type === AUDIO && packet.payload.length > 0) {
       const session = this.clients.get(client);
-      if (!session || packet.sequence <= session.highestSequence) {
+      if (!session || packet.payload.length <= 32) {
+        this.droppedPackets += 1;
+        return;
+      }
+      const tag = packet.payload.subarray(0, 32);
+      const audio = packet.payload.subarray(32);
+      const expectedTag = createHmac("sha256", session.token)
+        .update(message.subarray(0, 16))
+        .update(audio)
+        .digest();
+      if (
+        tag.length !== expectedTag.length ||
+        !timingSafeEqual(tag, expectedTag) ||
+        packet.sequence <= session.highestSequence
+      ) {
         this.droppedPackets += 1;
         return;
       }
@@ -170,15 +205,35 @@ export class UdpAudioTransport {
       this.audioPackets += 1;
       // O áudio real será ligado ao audio-core nativo. O transporte já valida
       // o framing, mantém a sessão e fornece telemetria sem tocar na UI.
-      void packet.payload;
+      void audio;
     }
   }
 
-  createHelloPacket(sequence = 1) {
-    return makePacket(HELLO, sequence, Date.now() >>> 0);
+  createHelloPacket(token: string, sequence = 1) {
+    return makePacket(
+      HELLO,
+      sequence,
+      Date.now() >>> 0,
+      Buffer.from(token, "hex")
+    );
   }
 
-  createAudioPacket(sequence: number, timestamp: number, payload: Buffer) {
-    return makePacket(AUDIO, sequence, timestamp, payload);
+  createAudioPacket(
+    token: string,
+    sequence: number,
+    timestamp: number,
+    payload: Buffer
+  ) {
+    const header = makePacket(AUDIO, sequence, timestamp);
+    const tag = createHmac("sha256", Buffer.from(token, "hex"))
+      .update(header)
+      .update(payload)
+      .digest();
+    return makePacket(
+      AUDIO,
+      sequence,
+      timestamp,
+      Buffer.concat([tag, payload])
+    );
   }
 }

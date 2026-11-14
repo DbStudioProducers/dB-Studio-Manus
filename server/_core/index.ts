@@ -25,7 +25,12 @@ async function startServer() {
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
   app.get("/api/udp/status", (_req, res) => res.json(udpAudio.getStatus()));
   app.post("/api/udp/join", (_req, res) =>
-    res.json({ ...udpAudio.getStatus(), joinCode: udpAudio.createJoinToken() })
+    res.json({
+      ...udpAudio.getStatus(),
+      joinCode: udpAudio.createJoinToken(),
+      sessionToken: udpAudio.createSessionToken(),
+      tokenTtlSeconds: 300,
+    })
   );
   app.get("/api/mix", (_req, res) => res.json(mixState.getSnapshot()));
   app.get("/api/diagnostics", (_req, res) =>
