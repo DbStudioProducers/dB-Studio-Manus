@@ -35,6 +35,11 @@ type UdpJoinResponse = {
   tokenTtlSeconds: number;
 };
 
+type LoginResponse = {
+  token: string;
+  user: { displayName: string; role: "technician" | "musician"; mixId: string | null };
+};
+
 const initialChannels: Channel[] = [
   { id: 1, name: "Vocal principal", level: 78, muted: false, color: "#ff8e86" },
   { id: 2, name: "Vocal 2", level: 58, muted: false, color: "#b6a1ff" },
@@ -47,9 +52,15 @@ const initialChannels: Channel[] = [
 const API_BASE = (
   process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:3000"
 ).replace(/\/$/, "");
+const DEVICE_ID = process.env.EXPO_PUBLIC_DEVICE_ID ?? "dbstudio-mobile";
 
 export default function App() {
   const [serverCode, setServerCode] = useState("DB-4821");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [latency, setLatency] = useState<number | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -91,12 +102,16 @@ export default function App() {
     }
   }, []);
 
-  const connectToServer = useCallback(async () => {
+  const connectToServer = useCallback(async (token = authToken) => {
+    if (!token) return;
     try {
       const startedAt = Date.now();
       const response = await fetch(`${API_BASE}/api/udp/join`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ joinCode: serverCode, musician: "Rafa" }),
       });
       if (!response.ok) throw new Error("join rejected");
@@ -110,7 +125,29 @@ export default function App() {
       setSessionToken(null);
       setLatency(null);
     }
-  }, [refreshMix, serverCode]);
+  }, [authToken, refreshMix, serverCode]);
+
+  const login = async () => {
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, deviceId: DEVICE_ID }),
+      });
+      const payload = (await response.json()) as LoginResponse & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "login recusado");
+      setAuthToken(payload.token);
+      setPassword("");
+      await connectToServer(payload.token);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "não foi possível entrar");
+      setAuthToken(null);
+    } finally {
+      setAuthBusy(false);
+    }
+  };
 
   useEffect(() => {
     void refreshStatus();
@@ -123,9 +160,13 @@ export default function App() {
   }, [refreshMix, refreshStatus, sessionToken]);
 
   const patchMix = async (path: string, body: Record<string, unknown>) => {
+    if (!authToken) throw new Error("login required");
     const response = await fetch(`${API_BASE}${path}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
       body: JSON.stringify({ ...body, revision }),
     });
     if (response.status === 409) {
@@ -137,6 +178,56 @@ export default function App() {
     setRevision(snapshot.revision);
     return snapshot;
   };
+
+  if (!authToken) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.brandMark}>
+              <Text style={styles.brandMarkText}>dB</Text>
+            </View>
+            <View>
+              <Text style={styles.brand}>dB Studio</Text>
+              <Text style={styles.overline}>ACESSO LOCAL</Text>
+            </View>
+          </View>
+          <View style={styles.loginCard}>
+            <Text style={styles.overline}>DISPOSITIVO AUTORIZADO</Text>
+            <Text style={styles.title}>Entrar na mixagem</Text>
+            <Text style={styles.mutedText}>
+              Use o usuário e a senha criados pelo técnico no Desktop.
+            </Text>
+            <TextInput
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              placeholder="Usuário do músico"
+              placeholderTextColor="#718580"
+              style={styles.loginInput}
+            />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholder="Senha"
+              placeholderTextColor="#718580"
+              style={styles.loginInput}
+            />
+            <Text style={styles.mutedText}>ID local: {DEVICE_ID}</Text>
+            {authError && <Text style={styles.errorText}>{authError}</Text>}
+            <Pressable
+              style={[styles.primaryButton, authBusy && styles.disabledButton]}
+              disabled={authBusy || !username || !password}
+              onPress={() => void login()}
+            >
+              <Text style={styles.primaryText}>{authBusy ? "Entrando…" : "Entrar"}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   const toggleMute = (id: number) => {
     const channel = channels.find(item => item.id === id);
@@ -407,6 +498,26 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 15,
   },
+  loginCard: {
+    backgroundColor: "#10191c",
+    borderColor: "#1f3031",
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 18,
+    marginTop: 22,
+    gap: 12,
+  },
+  loginInput: {
+    color: "#edf4f1",
+    backgroundColor: "#0b1315",
+    borderWidth: 1,
+    borderColor: "#2a4042",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  errorText: { color: "#ff6f78", fontSize: 11 },
+  disabledButton: { opacity: 0.45 },
   rowBetween: {
     flexDirection: "row",
     justifyContent: "space-between",

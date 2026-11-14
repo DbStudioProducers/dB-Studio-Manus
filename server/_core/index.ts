@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { UdpAudioTransport } from "../udp";
 import { MixState } from "../mix-state";
+import { LocalAuth } from "../local-auth";
 
 async function startServer() {
   const app = express();
@@ -18,25 +19,90 @@ async function startServer() {
   const mixState = new MixState(
     process.env.MIX_STATE_FILE || join(process.cwd(), "data", "mix-state.json")
   );
+  const localAuth = new LocalAuth(
+    process.env.LOCAL_AUTH_FILE || join(process.cwd(), "data", "users.json")
+  );
+  const requireAuth = (req: express.Request, res: express.Response, roles?: string[]) => {
+    const session = localAuth.authenticate(req.headers.authorization);
+    if (!session) {
+      res.status(401).json({ error: "authentication required", code: "AUTH_REQUIRED" });
+      return null;
+    }
+    if (roles && !roles.includes(session.user.role)) {
+      res.status(403).json({ error: "insufficient permissions", code: "FORBIDDEN" });
+      return null;
+    }
+    return session;
+  };
   await udpAudio.start();
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+  app.get("/api/auth/status", (_req, res) =>
+    res.json({ setupRequired: !localAuth.isSetup(), localOnly: true })
+  );
+  app.post("/api/auth/setup", (req, res) => {
+    try {
+      res.status(201).json({ user: localAuth.setupTechnician(req.body ?? {}) });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message, code: "AUTH_SETUP_FAILED" });
+    }
+  });
+  app.post("/api/auth/login", (req, res) => {
+    try {
+      res.json(localAuth.login(req.body ?? {}));
+    } catch (error) {
+      res.status(401).json({ error: (error as Error).message, code: "AUTH_LOGIN_FAILED" });
+    }
+  });
+  app.get("/api/auth/me", (req, res) => {
+    const session = requireAuth(req, res);
+    if (session) res.json({ user: session.user });
+  });
+  app.post("/api/auth/logout", (req, res) => {
+    localAuth.logout(req.headers.authorization);
+    res.status(204).end();
+  });
+  app.get("/api/auth/users", (req, res) => {
+    if (!requireAuth(req, res, ["technician"])) return;
+    res.json({ users: localAuth.listUsers() });
+  });
+  app.post("/api/auth/users", (req, res) => {
+    if (!requireAuth(req, res, ["technician"])) return;
+    try {
+      res.status(201).json({ user: localAuth.createUser(req.body ?? {}) });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message, code: "USER_CREATE_FAILED" });
+    }
+  });
+  app.patch("/api/auth/users/:id", (req, res) => {
+    if (!requireAuth(req, res, ["technician"])) return;
+    try {
+      res.json({ user: localAuth.updateUser(req.params.id, req.body ?? {}) });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message, code: "USER_UPDATE_FAILED" });
+    }
+  });
   app.get("/api/udp/status", (_req, res) => res.json(udpAudio.getStatus()));
-  app.post("/api/udp/join", (_req, res) =>
+  app.post("/api/udp/join", (req, res) => {
+    const session = requireAuth(req, res);
+    if (!session) return;
     res.json({
       ...udpAudio.getStatus(),
+      user: session.user,
       joinCode: udpAudio.createJoinToken(),
       sessionToken: udpAudio.createSessionToken(),
       tokenTtlSeconds: 300,
-    })
-  );
+    });
+  });
   app.get("/api/mix", (_req, res) => res.json(mixState.getSnapshot()));
-  app.get("/api/diagnostics", (_req, res) =>
-    res.json({ udp: udpAudio.getStatus(), mix: mixState.getSnapshot() })
-  );
+  app.get("/api/diagnostics", (req, res) => {
+    if (!requireAuth(req, res)) return;
+    res.json({ udp: udpAudio.getStatus(), mix: mixState.getSnapshot() });
+  });
   app.patch("/api/mix/master", (req, res) => {
+    if (!requireAuth(req, res)) return;
     try {
       res.json(mixState.updateMaster(req.body?.master, req.body?.revision));
     } catch (error) {
@@ -51,6 +117,7 @@ async function startServer() {
     }
   });
   app.patch("/api/mix/global-mute", (req, res) => {
+    if (!requireAuth(req, res)) return;
     try {
       res.json(
         mixState.updateGlobalMute(req.body?.globalMute, req.body?.revision)
@@ -67,6 +134,7 @@ async function startServer() {
     }
   });
   app.patch("/api/mix/channels/:id", (req, res) => {
+    if (!requireAuth(req, res)) return;
     try {
       const id = Number(req.params.id);
       if (!Number.isInteger(id)) throw new Error("invalid channel id");
@@ -78,6 +146,7 @@ async function startServer() {
     }
   });
   app.post("/api/mix/reset", (req, res) => {
+    if (!requireAuth(req, res, ["technician"])) return;
     try {
       res.json(mixState.reset(req.body?.revision));
     } catch (error) {

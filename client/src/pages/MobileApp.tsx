@@ -235,6 +235,10 @@ export default function MobileApp() {
   const [channels, setChannels] = useState(initialChannels);
   const [selectedChannel, setSelectedChannel] = useState<number | null>(null);
   const [serverCode, setServerCode] = useState("DB-4821");
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
   const [latency, setLatency] = useState(12);
   const [packetLoss, setPacketLoss] = useState(0.2);
   const [mixRevision, setMixRevision] = useState(1);
@@ -284,8 +288,11 @@ export default function MobileApp() {
   const updateChannel = async (id: number, patch: Partial<MobileChannel>) => {
     const response = await fetch(`/api/mix/channels/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ ...patch, revision: mixRevision }),
     });
     if (!response.ok) throw new Error("channel update");
     const snapshot = (await response.json()) as MixSnapshot;
@@ -321,8 +328,11 @@ export default function MobileApp() {
     setMaster(masterValue);
     void fetch("/api/mix/master", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ master: masterValue }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ master: masterValue, revision: mixRevision }),
     })
       .then(response => {
         if (!response.ok) throw new Error("master update");
@@ -336,8 +346,11 @@ export default function MobileApp() {
     setGlobalMute(muted);
     void fetch("/api/mix/global-mute", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ globalMute: muted }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ globalMute: muted, revision: mixRevision }),
     })
       .then(response => {
         if (!response.ok) throw new Error("mute update");
@@ -349,19 +362,56 @@ export default function MobileApp() {
 
   const connect = async () => {
     try {
-      const response = await fetch("/api/udp/status");
-      if (!response.ok) throw new Error("status");
-      setConnected(true);
-      toast.success("Servidor encontrado", {
-        description: `${serverCode} · UDP local pronto para o cliente nativo.`,
+      const loginResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          password,
+          deviceId: "web-mobile",
+        }),
       });
-    } catch {
+      const login = (await loginResponse.json()) as { token?: string; error?: string };
+      if (!loginResponse.ok || !login.token) throw new Error(login.error ?? "login recusado");
+      const response = await fetch("/api/udp/join", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${login.token}` },
+        body: JSON.stringify({ joinCode: serverCode }),
+      });
+      if (!response.ok) throw new Error("servidor não aceitou o dispositivo");
+      setAuthToken(login.token);
+      setConnected(true);
+      setAuthError(null);
+      toast.success("Servidor encontrado", {
+        description: `${serverCode} · dispositivo autenticado na rede local.`,
+      });
+    } catch (error) {
       setConnected(false);
+      setAuthError(error instanceof Error ? error.message : "não foi possível entrar");
       toast.error("Servidor não encontrado", {
-        description: "Confira o código e a rede local.",
+        description: "Confira usuário, senha e a rede local.",
       });
     }
   };
+
+  if (!authToken) {
+    return (
+      <div className="mobile-app-shell">
+        <MobileHeader onMenu={() => setMenuOpen(true)} />
+        <main className="mobile-app-main">
+          <section className="mobile-connection-card mobile-login-card">
+            <div className="mobile-status-label"><Lock size={14} /> ACESSO AUTORIZADO PELO DESKTOP</div>
+            <h1>Entrar na mixagem</h1>
+            <p>Use o usuário e a senha criados pelo técnico para este dispositivo.</p>
+            <input value={username} onChange={event => setUsername(event.target.value)} placeholder="Usuário do músico" autoCapitalize="none" />
+            <input value={password} onChange={event => setPassword(event.target.value)} placeholder="Senha" type="password" />
+            {authError && <span className="mobile-auth-error">{authError}</span>}
+            <button className="mobile-primary-button" onClick={() => void connect()} disabled={!username || !password}>Entrar e conectar</button>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="mobile-app-shell">

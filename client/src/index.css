@@ -2578,6 +2578,34 @@ input:focus-visible {
   font-size: 9px;
   margin-top: 4px;
 }
+.settings-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 720px;
+}
+.settings-form-row .code-input {
+  min-width: 120px;
+  max-width: 190px;
+  height: 30px;
+  padding: 0 9px;
+  font-size: 10px;
+}
+.user-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  white-space: nowrap;
+}
+.user-row strong {
+  color: #e0e9e5;
+}
+.user-row span {
+  color: #7f938b;
+  font-size: 9px;
+}
 .theme-options {
   display: flex;
   gap: 5px;
@@ -3166,6 +3194,39 @@ input:focus-visible {
 }
 .mobile-connection-card {
   padding: 15px;
+}
+.mobile-login-card {
+  display: grid;
+  gap: 12px;
+  max-width: 460px;
+  margin: 36px auto 0;
+}
+.mobile-login-card h1 {
+  margin: 0;
+  color: #edf4f1;
+  font-size: 28px;
+}
+.mobile-login-card p {
+  margin: 0;
+  color: #829690;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.mobile-login-card input {
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #2a4042;
+  border-radius: 8px;
+  background: #0b1315;
+  color: #edf4f1;
+  outline: none;
+}
+.mobile-login-card input:focus {
+  border-color: #5cf2c2;
+}
+.mobile-auth-error {
+  color: #ff6f78;
+  font-size: 11px;
 }
 .mobile-connection-topline,
 .mobile-server-row,
