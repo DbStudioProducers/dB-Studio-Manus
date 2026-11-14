@@ -10,7 +10,7 @@ O projeto possui dois workflows em `.github/workflows/`.
 
 `native-release.yml` roda manualmente ou em tags `v*`. O job desktop cria bundles Tauri em três runners independentes: Ubuntu, Windows e macOS. O job mobile usa EAS em runner Ubuntu para gerar Android e iOS em profile `production`, baixar os artefatos e publicá-los como artefatos do workflow. O job final publica `BUILD-INFO.txt` apenas quando todos os jobs nativos passam.
 
-O pipeline não publica automaticamente nas lojas. O input manual `submit_mobile` está preparado como ponto de governança, mas a submissão deve ser adicionada somente depois de configurar as credenciais e uma aprovação explícita. A geração usa `EXPO_TOKEN` como Secret do GitHub; certificados, provisioning e credenciais Android devem permanecer gerenciados pelo EAS. Nenhum token, keystore ou certificado deve ser commitado.
+O pipeline não publica automaticamente nas lojas. O input manual `submit_mobile` funciona como ponto de governança e só executa a submissão após uma execução manual explícita. A geração usa `EXPO_TOKEN` como Secret do GitHub; certificados, provisioning e credenciais Android devem permanecer gerenciados pelo EAS. Nenhum token, keystore ou certificado deve ser commitado.
 
 ## Configuração necessária no GitHub
 
@@ -36,4 +36,4 @@ pnpm native:package ./release-native
 
 ## Ponto crítico de operação
 
-O pipeline gera instaladores do shell Tauri e builds Expo, mas não comprova áudio PCM de baixa latência. O teste E2E valida o plano de controle e o handshake UDP, não a captura, transporte, jitter buffer ou reprodução de áudio. Essa validação exige hardware, drivers ASIO/Core Audio/Oboe/Audio Unit e testes de carga em uma rede dedicada.
+O pipeline gera instaladores do shell Tauri e builds Expo. O teste E2E valida o plano de controle, o handshake UDP e a filtragem de replay/reordenação com áudio sintético, mas não comprova captura, transporte contínuo, jitter buffer ou reprodução de áudio PCM de baixa latência. Essa validação exige hardware, drivers ASIO/Core Audio/Oboe/Audio Unit e testes de carga em uma rede dedicada.

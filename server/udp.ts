@@ -15,14 +15,22 @@ export type UdpAudioStatus = {
   protocol: "DBAU/1";
   packetsReceived: number;
   packetsSent: number;
+  audioPackets: number;
+  droppedPackets: number;
+  invalidPackets: number;
   lastPacketAt: string | null;
   clients: number;
 };
 
 type ClientKey = string;
+type ClientSession = {
+  highestSequence: number;
+  lastSeenAt: string;
+};
 
 function readPacket(message: Buffer) {
   if (message.length < 16 || !message.subarray(0, 4).equals(MAGIC)) return null;
+  if (message.readUInt8(4) !== VERSION) return null;
   return {
     type: message.readUInt8(5),
     sequence: message.readUInt32BE(8),
@@ -52,9 +60,12 @@ export class UdpAudioTransport {
   private socket: dgram.Socket | null = null;
   private readonly enabled: boolean;
   private readonly port: number;
-  private readonly clients = new Set<ClientKey>();
+  private readonly clients = new Map<ClientKey, ClientSession>();
   private packetsReceived = 0;
   private packetsSent = 0;
+  private audioPackets = 0;
+  private droppedPackets = 0;
+  private invalidPackets = 0;
   private lastPacketAt: string | null = null;
   private state: UdpAudioStatus["state"] = "offline";
 
@@ -114,6 +125,9 @@ export class UdpAudioTransport {
       protocol: "DBAU/1",
       packetsReceived: this.packetsReceived,
       packetsSent: this.packetsSent,
+      audioPackets: this.audioPackets,
+      droppedPackets: this.droppedPackets,
+      invalidPackets: this.invalidPackets,
       lastPacketAt: this.lastPacketAt,
       clients: this.clients.size,
     };
@@ -125,13 +139,20 @@ export class UdpAudioTransport {
 
   private handleMessage(message: Buffer, remote: dgram.RemoteInfo) {
     const packet = readPacket(message);
-    if (!packet || !this.socket) return;
+    if (!packet) {
+      this.invalidPackets += 1;
+      return;
+    }
+    if (!this.socket) return;
     const client = `${remote.address}:${remote.port}`;
-    this.clients.add(client);
     this.packetsReceived += 1;
     this.lastPacketAt = new Date().toISOString();
 
     if (packet.type === HELLO) {
+      this.clients.set(client, {
+        highestSequence: packet.sequence,
+        lastSeenAt: this.lastPacketAt,
+      });
       const ack = makePacket(ACK, packet.sequence, packet.timestamp);
       this.socket.send(ack, remote.port, remote.address, error => {
         if (!error) this.packetsSent += 1;
@@ -139,6 +160,14 @@ export class UdpAudioTransport {
     }
 
     if (packet.type === AUDIO && packet.payload.length > 0) {
+      const session = this.clients.get(client);
+      if (!session || packet.sequence <= session.highestSequence) {
+        this.droppedPackets += 1;
+        return;
+      }
+      session.highestSequence = packet.sequence;
+      session.lastSeenAt = this.lastPacketAt;
+      this.audioPackets += 1;
       // O áudio real será ligado ao audio-core nativo. O transporte já valida
       // o framing, mantém a sessão e fornece telemetria sem tocar na UI.
       void packet.payload;
