@@ -1,0 +1,138 @@
+name: dB Studio Native Hardware
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Plataforma de hardware a validar
+        required: true
+        type: choice
+        options:
+          - all
+          - windows-asio
+          - macos-coreaudio
+          - ios-audiounit
+          - android-oboe
+        default: all
+      run_driver:
+        description: Executar o smoke test de driver real após o preflight
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-hardware-${{ inputs.target }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 22
+  PNPM_VERSION: 10.18.0
+  DBSTUDIO_NATIVE_HARDWARE_ENABLED: ${{ inputs.run_driver }}
+  DBSTUDIO_NATIVE_DRIVER_TEST_BIN: ${{ vars.DBSTUDIO_NATIVE_DRIVER_TEST_BIN }}
+
+jobs:
+  windows-asio:
+    name: Windows ASIO hardware
+    if: inputs.target == 'all' || inputs.target == 'windows-asio'
+    runs-on: [self-hosted, windows, x64, asio-audio]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: ASIO and device preflight
+        shell: pwsh
+        env:
+          ASIO_SDK_DIR: ${{ vars.DBSTUDIO_ASIO_SDK_DIR }}
+          ASIO_DRIVER_NAME: ${{ vars.DBSTUDIO_ASIO_DRIVER_NAME }}
+        run: ./scripts/ci/preflight-windows-asio.ps1
+      - name: Native audio-core smoke
+        run: pnpm native:test:audio-core
+      - name: Real ASIO driver smoke
+        if: inputs.run_driver
+        shell: pwsh
+        run: ./scripts/ci/run-native-driver.ps1 asio
+
+  macos-coreaudio:
+    name: macOS Core Audio hardware
+    if: inputs.target == 'all' || inputs.target == 'macos-coreaudio'
+    runs-on: [self-hosted, macos, arm64, coreaudio-audio]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Core Audio preflight
+        env:
+          AUDIO_DEVICE_NAME: ${{ vars.DBSTUDIO_MAC_AUDIO_DEVICE }}
+        run: bash scripts/ci/preflight-macos-audio.sh coreaudio
+      - name: Native audio-core smoke
+        run: pnpm native:test:audio-core
+      - name: Real Core Audio driver smoke
+        if: inputs.run_driver
+        run: bash scripts/ci/run-native-driver.sh coreaudio
+
+  ios-audiounit:
+    name: iOS Audio Unit hardware
+    if: inputs.target == 'all' || inputs.target == 'ios-audiounit'
+    runs-on: [self-hosted, macos, arm64, ios, audio-unit]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Xcode and iOS device preflight
+        env:
+          IOS_UDID: ${{ vars.DBSTUDIO_IOS_UDID }}
+        run: bash scripts/ci/preflight-ios-audio.sh
+      - name: Native audio-core smoke
+        run: pnpm native:test:audio-core
+      - name: Real Audio Unit device smoke
+        if: inputs.run_driver
+        run: bash scripts/ci/run-native-driver.sh audiounit
+
+  android-oboe:
+    name: Android Oboe hardware
+    if: inputs.target == 'all' || inputs.target == 'android-oboe'
+    runs-on: [self-hosted, linux, x64, android, oboe-audio]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Android and Oboe device preflight
+        env:
+          ANDROID_SERIAL: ${{ vars.DBSTUDIO_ANDROID_SERIAL }}
+        run: bash scripts/ci/preflight-android-oboe.sh
+      - name: Native audio-core smoke
+        run: pnpm native:test:audio-core
+      - name: Real Oboe device smoke
+        if: inputs.run_driver
+        run: bash scripts/ci/run-native-driver.sh oboe
