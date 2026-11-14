@@ -52,3 +52,13 @@
 - [x] Manter proteção de sequência para bloquear replay e reordenação após a autenticação.
 - [x] Validar no E2E sessão válida, pacote HMAC aceito, assinatura inválida, token ausente, replay e versão inválida.
 - [ ] Transportar o token por canal de controle TLS/HTTPS em produção e substituir HMAC isolado por SRTP/DTLS para confidencialidade e proteção completa do áudio.
+
+## 16. Camada nativa de áudio
+
+- [x] Criar `native/audio-core` com mixer estéreo determinístico, gain, pan, mute, master, métricas RMS/peak e xruns.
+- [x] Garantir que o callback do núcleo não faça alocação, lock, I/O ou chamadas de UI.
+- [x] Criar contrato comum e adapters condicionais para ASIO, Core Audio, Oboe/AAudio e Audio Unit.
+- [x] Adicionar fallback portátil explícito para ambientes sem SDK de áudio.
+- [x] Adicionar smoke test C++ ao CI e executar com `g++` no Sandbox.
+- [ ] Abrir dispositivos reais, instalar callbacks e ligar ring buffers em hosts Windows/macOS/Android/iOS.
+- [ ] Validar latência, xruns, desconexão e sample rate efetivo com hardware real.

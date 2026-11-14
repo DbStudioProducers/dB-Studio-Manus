@@ -48,6 +48,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Native audio-core smoke test
+        run: pnpm native:test:audio-core
+
       - name: End-to-end control and UDP handshake
         run: pnpm test:e2e:control
 
