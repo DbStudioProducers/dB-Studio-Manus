@@ -3,7 +3,7 @@
 use serde::Serialize;
 use tauri::Emitter;
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 struct DesktopStatus {
     app: &'static str,
     transport: &'static str,
