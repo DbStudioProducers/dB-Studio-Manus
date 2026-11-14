@@ -71,3 +71,12 @@
 - [x] Documentar labels, variáveis, isolamento e procedimento de registro dos runners.
 - [ ] Registrar os quatro runners self-hosted, conectar hardware físico e configurar variáveis do repositório.
 - [ ] Implementar e publicar os binários reais de smoke test para cada backend.
+
+## 18. Testes de carga e latência
+
+- [x] Criar benchmark de 16 mixagens a 48 kHz com buffers de 48, 96 e 128 frames.
+- [x] Medir p50, p95, p99, máximo e orçamento de callback, com falha acima de 80% do orçamento.
+- [x] Executar no Sandbox: no caso de 128 frames, p99 de 0,0831 ms contra orçamento de 2,6667 ms.
+- [x] Adicionar o benchmark ao CI comum e aos quatro jobs de hardware.
+- [x] Consultar o GitHub: o repositório ainda possui zero runners self-hosted registrados.
+- [ ] Reexecutar em Windows/macOS/iPhone/Android físicos e medir latência ponta a ponta com loopback, xruns, dropouts e jitter.

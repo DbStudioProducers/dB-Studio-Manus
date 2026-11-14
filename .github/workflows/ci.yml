@@ -51,6 +51,9 @@ jobs:
       - name: Native audio-core smoke test
         run: pnpm native:test:audio-core
 
+      - name: Native audio load benchmark
+        run: pnpm native:test:audio-load
+
       - name: End-to-end control and UDP handshake
         run: pnpm test:e2e:control
 
