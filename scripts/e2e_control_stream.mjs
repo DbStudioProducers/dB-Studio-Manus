@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { createSocket } from "node:dgram";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -44,7 +45,7 @@ async function json(path, init) {
   return body;
 }
 
-function waitForUdpAck(socket, portNumber) {
+function waitForUdpAck(socket, portNumber, token) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       reject(new Error("timeout aguardando ACK UDP"));
@@ -63,12 +64,13 @@ function waitForUdpAck(socket, portNumber) {
         reject(error);
       }
     });
-    const packet = Buffer.alloc(16);
+    const packet = Buffer.alloc(16 + 32);
     packet.write("DBAU", 0, "ascii");
     packet.writeUInt8(1, 4);
     packet.writeUInt8(1, 5);
     packet.writeUInt32BE(42, 8);
     packet.writeUInt32BE(Date.now() >>> 0, 12);
+    Buffer.from(token, "hex").copy(packet, 16);
     socket.send(packet, portNumber, "127.0.0.1");
   });
 }
@@ -88,6 +90,15 @@ function makePacket(
   packet.writeUInt32BE(timestamp >>> 0, 12);
   payload.copy(packet, 16);
   return packet;
+}
+
+function makeAuthenticatedAudioPacket(token, sequence, timestamp, audio) {
+  const header = makePacket(1, 3, sequence, timestamp);
+  const tag = createHmac("sha256", Buffer.from(token, "hex"))
+    .update(header)
+    .update(audio)
+    .digest();
+  return makePacket(1, 3, sequence, timestamp, Buffer.concat([tag, audio]));
 }
 
 async function main() {
@@ -120,6 +131,12 @@ async function main() {
 
   const initial = await json("/api/mix");
   assert(initial.channels.length === 6, "snapshot Expo não possui 6 canais");
+  const session = await json("/api/udp/join", { method: "POST", body: "{}" });
+  assert(
+    typeof session.sessionToken === "string" &&
+      session.sessionToken.length === 64,
+    "servidor não emitiu token de sessão de 32 bytes"
+  );
 
   const channel = await json("/api/mix/channels/1", {
     method: "PATCH",
@@ -157,28 +174,55 @@ async function main() {
   );
 
   const socket = createSocket("udp4");
-  await waitForUdpAck(socket, udpPort);
+  await waitForUdpAck(socket, udpPort, session.sessionToken);
   const now = Date.now() >>> 0;
   socket.send(
-    makePacket(1, 3, 43, now, Buffer.from([0, 1, 2, 3])),
+    makeAuthenticatedAudioPacket(
+      session.sessionToken,
+      43,
+      now,
+      Buffer.from([0, 1, 2, 3])
+    ),
     udpPort,
     "127.0.0.1"
   );
   socket.send(
-    makePacket(1, 3, 43, now + 1, Buffer.from([4, 5])),
+    makeAuthenticatedAudioPacket(
+      session.sessionToken,
+      43,
+      now + 1,
+      Buffer.from([4, 5])
+    ),
     udpPort,
     "127.0.0.1"
   );
   socket.send(
-    makePacket(1, 3, 42, now + 2, Buffer.from([6, 7])),
+    makeAuthenticatedAudioPacket(
+      session.sessionToken,
+      42,
+      now + 2,
+      Buffer.from([6, 7])
+    ),
     udpPort,
     "127.0.0.1"
   );
   socket.send(
-    makePacket(9, 3, 44, now + 3, Buffer.from([8, 9])),
+    makePacket(
+      1,
+      3,
+      44,
+      now + 3,
+      Buffer.concat([Buffer.alloc(32), Buffer.from([8, 9])])
+    ),
     udpPort,
     "127.0.0.1"
   );
+  socket.send(
+    makePacket(9, 3, 45, now + 4, Buffer.from([10, 11])),
+    udpPort,
+    "127.0.0.1"
+  );
+  socket.send(makePacket(1, 1, 46, now + 5), udpPort, "127.0.0.1");
   await new Promise(resolve => setTimeout(resolve, 150));
   socket.close();
   const afterHandshake = await json("/api/udp/status");
@@ -192,12 +236,12 @@ async function main() {
     "servidor não filtrou replay/reordenação de áudio"
   );
   assert(
-    afterHandshake.droppedPackets === 2,
-    "servidor não contabilizou pacotes duplicados/fora de ordem"
+    afterHandshake.droppedPackets === 3,
+    "servidor não contabilizou replay, reordenação e assinatura inválida"
   );
   assert(
-    afterHandshake.invalidPackets === 1,
-    "servidor não rejeitou versão UDP inválida"
+    afterHandshake.invalidPackets === 2,
+    "servidor não rejeitou versão ou token UDP inválidos"
   );
 
   const reset = await json("/api/mix/reset", { method: "POST", body: "{}" });

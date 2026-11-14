@@ -192,6 +192,6 @@ Essa é a visão crítica mais importante: Wi‑Fi compartilhado e smartphones t
 
 ## Evidência já implementada
 
-O transporte `DBAU/1` já possui uma primeira camada de proteção operacional: validação de magic/version, criação de sessão no HELLO, controle do maior sequence por cliente, rejeição de replay e reordenação, contadores de pacotes inválidos/descartados e contagem de pacotes de áudio sintético aceitos. O E2E `pnpm test:e2e:control` comprova esse comportamento com o mesmo socket UDP: um pacote de áudio é aceito, dois são descartados por sequência e um pacote com versão inválida é rejeitado.
+O transporte `DBAU/1` já possui uma primeira camada de proteção operacional: token aleatório temporário emitido pelo endpoint de join, token exigido no HELLO, HMAC-SHA256 por pacote de áudio, validação de magic/version, controle do maior sequence por cliente, rejeição de replay e reordenação, contadores de pacotes inválidos/descartados e contagem de pacotes de áudio sintético aceitos. O E2E `pnpm test:e2e:control` comprova esse comportamento com o mesmo socket UDP: um pacote HMAC válido é aceito, replay/reordenação/assinatura inválida são descartados e token ausente ou versão inválida são rejeitados.
 
-Isso ainda não é um jitter buffer nem segurança de produção. Permanecem pendentes autenticação de sessão, proteção contra replay criptográfica, RTP/RTCP ou cabeçalho equivalente completo, fila sem lock, DSP e entrega ao callback nativo.
+Isso ainda não é SRTP/DTLS nem um jitter buffer. O HMAC autentica e protege contra alteração/replay dentro da sessão, mas não fornece confidencialidade e o token precisa ser entregue por HTTPS/TLS em produção. Permanecem pendentes RTP/RTCP ou cabeçalho equivalente completo, fila sem lock, DSP e entrega ao callback nativo.

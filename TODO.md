@@ -43,3 +43,12 @@
 - [x] Expor contadores de áudio aceito, pacotes descartados e pacotes inválidos no diagnóstico.
 - [x] Validar no E2E um pacote de áudio sintético aceito, dois descartados e uma versão inválida rejeitada.
 - [ ] Adicionar token de sessão, proteção criptográfica contra replay, jitter buffer e callback para o núcleo de áudio nativo.
+
+## 15. Token de sessão e autenticação contra replay
+
+- [x] Emitir token aleatório de sessão com validade temporária pelo endpoint `/api/udp/join`.
+- [x] Exigir token binário no pacote HELLO antes de criar a sessão UDP.
+- [x] Autenticar pacotes de áudio com HMAC-SHA256 usando o token da sessão.
+- [x] Manter proteção de sequência para bloquear replay e reordenação após a autenticação.
+- [x] Validar no E2E sessão válida, pacote HMAC aceito, assinatura inválida, token ausente, replay e versão inválida.
+- [ ] Transportar o token por canal de controle TLS/HTTPS em produção e substituir HMAC isolado por SRTP/DTLS para confidencialidade e proteção completa do áudio.
