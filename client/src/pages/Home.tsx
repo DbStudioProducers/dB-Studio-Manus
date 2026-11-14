@@ -476,7 +476,7 @@ function AppShell({
           <div className="user-card">
             <div className="user-avatar">MS</div>
             <div>
-              <strong>Marina Souza</strong>
+              <strong>Henrique Corrêa</strong>
               <span>Sound engineer</span>
             </div>
             <MoreHorizontal size={17} />
