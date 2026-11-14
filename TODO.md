@@ -34,3 +34,12 @@
 - [x] Publicar instaladores e metadados como artefatos do workflow, sem incluir segredos no repositório.
 - [x] Documentar Secrets, configuração EAS, governança de submissão e limitações de validação de áudio.
 - [ ] Conectar o projeto a um repositório GitHub e configurar `EXPO_TOKEN`, credenciais EAS e `projectId` real.
+
+## 14. Robustez inicial do protocolo DBAU
+
+- [x] Validar magic e versão dos pacotes antes de processá-los.
+- [x] Criar sessão UDP no HELLO e acompanhar o maior sequence por cliente.
+- [x] Rejeitar replay e reordenação de pacotes de áudio.
+- [x] Expor contadores de áudio aceito, pacotes descartados e pacotes inválidos no diagnóstico.
+- [x] Validar no E2E um pacote de áudio sintético aceito, dois descartados e uma versão inválida rejeitada.
+- [ ] Adicionar token de sessão, proteção criptográfica contra replay, jitter buffer e callback para o núcleo de áudio nativo.

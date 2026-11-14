@@ -189,3 +189,9 @@ Essa é a visão crítica mais importante: Wi‑Fi compartilhado e smartphones t
 8. Executar laboratório com perda/jitter e 16 clientes.
 9. Integrar os diagnósticos reais ao dashboard existente.
 10. Só então iniciar piloto de ensaio com uma banda e uma rede dedicada.
+
+## Evidência já implementada
+
+O transporte `DBAU/1` já possui uma primeira camada de proteção operacional: validação de magic/version, criação de sessão no HELLO, controle do maior sequence por cliente, rejeição de replay e reordenação, contadores de pacotes inválidos/descartados e contagem de pacotes de áudio sintético aceitos. O E2E `pnpm test:e2e:control` comprova esse comportamento com o mesmo socket UDP: um pacote de áudio é aceito, dois são descartados por sequência e um pacote com versão inválida é rejeitado.
+
+Isso ainda não é um jitter buffer nem segurança de produção. Permanecem pendentes autenticação de sessão, proteção contra replay criptográfica, RTP/RTCP ou cabeçalho equivalente completo, fila sem lock, DSP e entrega ao callback nativo.

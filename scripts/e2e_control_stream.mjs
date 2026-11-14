@@ -47,7 +47,6 @@ async function json(path, init) {
 function waitForUdpAck(socket, portNumber) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      socket.close();
       reject(new Error("timeout aguardando ACK UDP"));
     }, 3_000);
     socket.once("message", message => {
@@ -62,8 +61,6 @@ function waitForUdpAck(socket, portNumber) {
         resolve(message);
       } catch (error) {
         reject(error);
-      } finally {
-        socket.close();
       }
     });
     const packet = Buffer.alloc(16);
@@ -74,6 +71,23 @@ function waitForUdpAck(socket, portNumber) {
     packet.writeUInt32BE(Date.now() >>> 0, 12);
     socket.send(packet, portNumber, "127.0.0.1");
   });
+}
+
+function makePacket(
+  version,
+  type,
+  sequence,
+  timestamp,
+  payload = Buffer.alloc(0)
+) {
+  const packet = Buffer.alloc(16 + payload.length);
+  packet.write("DBAU", 0, "ascii");
+  packet.writeUInt8(version, 4);
+  packet.writeUInt8(type, 5);
+  packet.writeUInt32BE(sequence >>> 0, 8);
+  packet.writeUInt32BE(timestamp >>> 0, 12);
+  payload.copy(packet, 16);
+  return packet;
 }
 
 async function main() {
@@ -144,12 +158,47 @@ async function main() {
 
   const socket = createSocket("udp4");
   await waitForUdpAck(socket, udpPort);
+  const now = Date.now() >>> 0;
+  socket.send(
+    makePacket(1, 3, 43, now, Buffer.from([0, 1, 2, 3])),
+    udpPort,
+    "127.0.0.1"
+  );
+  socket.send(
+    makePacket(1, 3, 43, now + 1, Buffer.from([4, 5])),
+    udpPort,
+    "127.0.0.1"
+  );
+  socket.send(
+    makePacket(1, 3, 42, now + 2, Buffer.from([6, 7])),
+    udpPort,
+    "127.0.0.1"
+  );
+  socket.send(
+    makePacket(9, 3, 44, now + 3, Buffer.from([8, 9])),
+    udpPort,
+    "127.0.0.1"
+  );
+  await new Promise(resolve => setTimeout(resolve, 150));
+  socket.close();
   const afterHandshake = await json("/api/udp/status");
   assert(
     afterHandshake.packetsReceived >= 1,
     "servidor não contabilizou HELLO UDP"
   );
   assert(afterHandshake.packetsSent >= 1, "servidor não enviou ACK UDP");
+  assert(
+    afterHandshake.audioPackets === 1,
+    "servidor não filtrou replay/reordenação de áudio"
+  );
+  assert(
+    afterHandshake.droppedPackets === 2,
+    "servidor não contabilizou pacotes duplicados/fora de ordem"
+  );
+  assert(
+    afterHandshake.invalidPackets === 1,
+    "servidor não rejeitou versão UDP inválida"
+  );
 
   const reset = await json("/api/mix/reset", { method: "POST", body: "{}" });
   assert(reset.master === initial.master, "reset não restaurou master");
@@ -168,6 +217,9 @@ async function main() {
           port: udpPort,
           packetsReceived: afterHandshake.packetsReceived,
           packetsSent: afterHandshake.packetsSent,
+          audioPackets: afterHandshake.audioPackets,
+          droppedPackets: afterHandshake.droppedPackets,
+          invalidPackets: afterHandshake.invalidPackets,
         },
         control: {
           channelLevel: 91,
