@@ -108,6 +108,7 @@ temp/
 *.sqlite
 *.sqlite3
 data/
+.native-build/
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/

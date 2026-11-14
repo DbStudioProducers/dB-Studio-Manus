@@ -17,7 +17,7 @@ fn desktop_status() -> DesktopStatus {
         app: "dB Studio Desktop Server",
         transport: "DBAU/1",
         udp_port: 5004,
-        native_audio: "adapter pending: ASIO/Core Audio",
+        native_audio: "audio-core ready; platform host build required",
     }
 }
 
