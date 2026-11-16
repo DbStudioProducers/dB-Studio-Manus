@@ -44,6 +44,8 @@ workflows:
       - /tmp/*.log
     publishing:
       email:
+        recipients:
+          - yggdrasilagencia@gmail.com
         notify:
           success: true
           failure: true
