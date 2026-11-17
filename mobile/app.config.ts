@@ -14,6 +14,7 @@ const config: ExpoConfig = {
     infoPlist: {
       NSLocalNetworkUsageDescription:
         "O dB Studio precisa encontrar o servidor de áudio na rede local.",
+      NSBonjourServices: ["_dbstudio._tcp"],
       UIBackgroundModes: ["audio"],
     },
   },

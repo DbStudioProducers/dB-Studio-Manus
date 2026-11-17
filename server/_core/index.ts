@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { UdpAudioTransport } from "../udp";
 import { MixState } from "../mix-state";
 import { LocalAuth } from "../local-auth";
+import { LocalDiscovery } from "../local-discovery";
 
 async function startServer() {
   const app = express();
@@ -22,14 +23,24 @@ async function startServer() {
   const localAuth = new LocalAuth(
     process.env.LOCAL_AUTH_FILE || join(process.cwd(), "data", "users.json")
   );
-  const requireAuth = (req: express.Request, res: express.Response, roles?: string[]) => {
+  const port = Number(process.env.PORT || "3000");
+  const localDiscovery = new LocalDiscovery(port);
+  const requireAuth = (
+    req: express.Request,
+    res: express.Response,
+    roles?: string[]
+  ) => {
     const session = localAuth.authenticate(req.headers.authorization);
     if (!session) {
-      res.status(401).json({ error: "authentication required", code: "AUTH_REQUIRED" });
+      res
+        .status(401)
+        .json({ error: "authentication required", code: "AUTH_REQUIRED" });
       return null;
     }
     if (roles && !roles.includes(session.user.role)) {
-      res.status(403).json({ error: "insufficient permissions", code: "FORBIDDEN" });
+      res
+        .status(403)
+        .json({ error: "insufficient permissions", code: "FORBIDDEN" });
       return null;
     }
     return session;
@@ -39,6 +50,7 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+  app.get("/api/discovery", (_req, res) => res.json(localDiscovery.getInfo()));
   app.get("/api/auth/status", (_req, res) =>
     res.json({ setupRequired: !localAuth.isSetup(), localOnly: true })
   );
@@ -46,14 +58,18 @@ async function startServer() {
     try {
       res.status(201).json({ user: localAuth.setupTechnician(req.body ?? {}) });
     } catch (error) {
-      res.status(400).json({ error: (error as Error).message, code: "AUTH_SETUP_FAILED" });
+      res
+        .status(400)
+        .json({ error: (error as Error).message, code: "AUTH_SETUP_FAILED" });
     }
   });
   app.post("/api/auth/login", (req, res) => {
     try {
       res.json(localAuth.login(req.body ?? {}));
     } catch (error) {
-      res.status(401).json({ error: (error as Error).message, code: "AUTH_LOGIN_FAILED" });
+      res
+        .status(401)
+        .json({ error: (error as Error).message, code: "AUTH_LOGIN_FAILED" });
     }
   });
   app.get("/api/auth/me", (req, res) => {
@@ -73,7 +89,9 @@ async function startServer() {
     try {
       res.status(201).json({ user: localAuth.createUser(req.body ?? {}) });
     } catch (error) {
-      res.status(400).json({ error: (error as Error).message, code: "USER_CREATE_FAILED" });
+      res
+        .status(400)
+        .json({ error: (error as Error).message, code: "USER_CREATE_FAILED" });
     }
   });
   app.patch("/api/auth/users/:id", (req, res) => {
@@ -81,7 +99,9 @@ async function startServer() {
     try {
       res.json({ user: localAuth.updateUser(req.params.id, req.body ?? {}) });
     } catch (error) {
-      res.status(400).json({ error: (error as Error).message, code: "USER_UPDATE_FAILED" });
+      res
+        .status(400)
+        .json({ error: (error as Error).message, code: "USER_UPDATE_FAILED" });
     }
   });
   app.get("/api/udp/status", (_req, res) => res.json(udpAudio.getStatus()));
@@ -177,16 +197,23 @@ async function startServer() {
     serveStatic(app);
   }
 
-  const port = Number(process.env.PORT || "3000");
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error("Invalid PORT");
   server.on("error", error => {
     console.error("Server failed:", error.message);
     process.exit(1);
   });
-  server.listen(port, "0.0.0.0", () =>
-    console.log(`Server listening on port ${port}`)
-  );
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`Server listening on port ${port}`);
+    localDiscovery.start();
+  });
+  const shutdown = () => {
+    localDiscovery.stop();
+    udpAudio.stop();
+    server.close();
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
 
 startServer().catch(error => {

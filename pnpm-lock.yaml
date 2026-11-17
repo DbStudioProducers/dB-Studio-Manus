@@ -118,6 +118,9 @@ importers:
       axios:
         specifier: ^1.12.0
         version: 1.12.2
+      bonjour-service:
+        specifier: ^1.4.4
+        version: 1.4.4
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -308,6 +311,9 @@ importers:
       react-native-web:
         specifier: ^0.21.4
         version: 0.21.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react-native-zeroconf:
+        specifier: ^0.17.7
+        version: 0.17.7(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
     devDependencies:
       '@types/react':
         specifier: ~19.1.10
@@ -1899,6 +1905,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@leichtgewicht/ip-codec@2.0.5':
+    resolution: {integrity: sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==}
+
   '@mermaid-js/parser@0.6.3':
     resolution: {integrity: sha512-lnjOhe7zyHjc+If7yT4zoedx2vo4sHaTmtkl1+or8BRTnCtDmcTpAjpzDSfCZrshM5bCoz0GyidzadJAH1xobA==}
 
@@ -2874,6 +2883,9 @@ packages:
   '@smithy/smithy-client@4.7.1':
     resolution: {integrity: sha512-WXVbiyNf/WOS/RHUoFMkJ6leEVpln5ojCjNBnzoZeMsnCg3A0BRhLK3WYc4V7PmYcYPZh9IYzzAg9XcNSzYxYQ==}
     engines: {node: '>=18.0.0'}
+    deprecated: |-
+      Deprecated due to a bug in custom logger data redaction. Upgrade to the latest version. If you used a custom logger with
+        this version, review your logs and rotate any credentials or other secrets. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/types@4.6.0':
     resolution: {integrity: sha512-4lI9C8NzRPOv66FaY1LL1O/0v0aLVrq/mXP/keUa9mJOApEeae43LsLd2kZRUJw91gxOQfLIrV3OvqPgWz1YsA==}
@@ -3550,6 +3562,9 @@ packages:
     resolution: {integrity: sha512-7rAxByjUMqQ3/bHJy7D6OGXvx/MMc4IqBn/X0fcM1QUcAItpZrBEYhWGem+tzXH90c+G01ypMcYJBO9Y30203g==}
     engines: {node: '>= 0.8', npm: 1.2.8000 || >= 1.4.16}
 
+  bonjour-service@1.4.4:
+    resolution: {integrity: sha512-jCZcVv7eoc4QesRscwEZtSROBen+6LpKAmBIsQYQrsAeVHLyMXWX/t6eIV5KiRZYNUBl8eVqImEEMQ8L5+c/Kw==}
+
   bowser@2.12.1:
     resolution: {integrity: sha512-z4rE2Gxh7tvshQ4hluIT7XcFrgLIQaw9X3A+kTTRdovCz5PMukm/0QC/BKSYPj3omF5Qfypn9O/c5kgpmvYUCw==}
 
@@ -4080,6 +4095,10 @@ packages:
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
+  dns-packet@5.6.1:
+    resolution: {integrity: sha512-l4gcSouhcgIKRvyy99RNVOgxXiicE+2jZoNmaNmZ6JXiGajBOJAesk1OBlJuM5k2c+eudGdLxDqXuPCKIj6kpw==}
+    engines: {node: '>=6'}
+
   dom-helpers@5.2.1:
     resolution: {integrity: sha512-nRCa7CK3VTrM2NmGkIy4cbK7IZlgBE/PYMn55rrXefr5xXDP0LdtfPnblFDoVdcAfslJ7or6iqAUnx0CCGIWQA==}
 
@@ -4338,6 +4357,10 @@ packages:
   eventemitter3@4.0.7:
     resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
 
+  events@3.3.0:
+    resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
+    engines: {node: '>=0.8.x'}
+
   expect-type@1.2.2:
     resolution: {integrity: sha512-JhFGDVJ7tmDJItKhYgJCGLOWjuK9vPxiXoUFLwLDc99NlmklilbiQJwoctZtt13+xMw91MCk/REan6MWHqDjyA==}
     engines: {node: '>=12.0.0'}
@@ -4423,6 +4446,9 @@ packages:
 
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
+
+  fast-deep-equal@3.1.3:
+    resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
   fast-equals@5.3.2:
     resolution: {integrity: sha512-6rxyATwPCkaFIL3JLqw8qXqMpIZ942pTX/tbQFkRsDGblS8tNGtlUauA/+mt6RUfqn/4MoEr+WDkYoIQbibWuQ==}
@@ -5415,6 +5441,10 @@ packages:
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
+  multicast-dns@7.2.5:
+    resolution: {integrity: sha512-2eznPJP8z2BFLX50tf0LuODrpINqP1RVIm/CObbTcBRITQgmC/TjcREF1NeTBzIcR5XO/ukWo+YHOjBbFwIupg==}
+    hasBin: true
+
   mysql2@3.15.1:
     resolution: {integrity: sha512-WZMIRZstT2MFfouEaDz/AGFnGi1A2GwaDe7XvKTdRJEYiAHbOrh4S3d8KFmQeh11U85G+BFjIvS1Di5alusZsw==}
     engines: {node: '>= 8.0'}
@@ -5814,6 +5844,12 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
+
+  react-native-zeroconf@0.17.7:
+    resolution: {integrity: sha512-13UmXbviEY+eBx2PmNEuD3NGa/AFGJE2MMpeOI47lPpVvj9ehXlmnMTSmMiK0huplhrdwTpStXFaXcu3KOw0EQ==}
+    peerDependencies:
+      react: '*'
+      react-native: '>=0.60'
 
   react-native@0.81.4:
     resolution: {integrity: sha512-bt5bz3A/+Cv46KcjV0VQa+fo7MKxs17RCcpzjftINlen4ZDUl0I6Ut+brQ2FToa5oD0IB0xvQHfmsg2EDqsZdQ==}
@@ -6290,6 +6326,9 @@ packages:
 
   throat@5.0.0:
     resolution: {integrity: sha512-fcwX4mndzpLQKBS1DVYhGAcYaYt7vsHNIvQV+WXMvnow5cgjPphq5CaayLaGsjRdSCKZFNGt7/GYAuXaNOiYCA==}
+
+  thunky@1.1.0:
+    resolution: {integrity: sha512-eHY7nBftgThBqOyHGVN+l8gF0BucP09fMo0oO/Lb0w1OF80dJv+lDVpXG60WMQvkcxAkNybKsrEIE3ZtKGmPrA==}
 
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
@@ -8748,6 +8787,8 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@leichtgewicht/ip-codec@2.0.5': {}
+
   '@mermaid-js/parser@0.6.3':
     dependencies:
       langium: 3.3.1
@@ -10687,6 +10728,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  bonjour-service@1.4.4:
+    dependencies:
+      fast-deep-equal: 3.1.3
+      multicast-dns: 7.2.5
+
   bowser@2.12.1: {}
 
   bplist-creator@0.1.0:
@@ -11224,6 +11270,10 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
+  dns-packet@5.6.1:
+    dependencies:
+      '@leichtgewicht/ip-codec': 2.0.5
+
   dom-helpers@5.2.1:
     dependencies:
       '@babel/runtime': 7.28.4
@@ -11458,6 +11508,8 @@ snapshots:
 
   eventemitter3@4.0.7: {}
 
+  events@3.3.0: {}
+
   expect-type@1.2.2: {}
 
   expo-asset@12.0.14(expo@54.0.38)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)(typescript@5.9.3):
@@ -11596,6 +11648,8 @@ snapshots:
   exsolve@1.0.7: {}
 
   extend@3.0.2: {}
+
+  fast-deep-equal@3.1.3: {}
 
   fast-equals@5.3.2: {}
 
@@ -13093,6 +13147,11 @@ snapshots:
 
   ms@2.1.3: {}
 
+  multicast-dns@7.2.5:
+    dependencies:
+      dns-packet: 5.6.1
+      thunky: 1.1.0
+
   mysql2@3.15.1:
     dependencies:
       aws-ssl-profiles: 1.1.2
@@ -13493,6 +13552,12 @@ snapshots:
       styleq: 0.1.3
     transitivePeerDependencies:
       - encoding
+
+  react-native-zeroconf@0.17.7(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
+    dependencies:
+      events: 3.3.0
+      react: 19.1.0
+      react-native: 0.81.4(@babel/core@7.28.4)(@types/react@19.1.17)(react@19.1.0)
 
   react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.17)(react@19.1.0):
     dependencies:
@@ -14085,6 +14150,8 @@ snapshots:
       any-promise: 1.3.0
 
   throat@5.0.0: {}
+
+  thunky@1.1.0: {}
 
   tiny-invariant@1.3.3: {}
 

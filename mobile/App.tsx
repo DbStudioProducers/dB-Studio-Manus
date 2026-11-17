@@ -1,6 +1,7 @@
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -9,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Zeroconf, { type Service } from "react-native-zeroconf";
 
 type Channel = {
   id: number;
@@ -37,7 +39,11 @@ type UdpJoinResponse = {
 
 type LoginResponse = {
   token: string;
-  user: { displayName: string; role: "technician" | "musician"; mixId: string | null };
+  user: {
+    displayName: string;
+    role: "technician" | "musician";
+    mixId: string | null;
+  };
 };
 
 const initialChannels: Channel[] = [
@@ -49,13 +55,18 @@ const initialChannels: Channel[] = [
   { id: 6, name: "Click", level: 32, muted: false, color: "#78e0a2" },
 ];
 
-const API_BASE = (
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:3000"
-).replace(/\/$/, "");
+const CONFIGURED_API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? null;
 const DEVICE_ID = process.env.EXPO_PUBLIC_DEVICE_ID ?? "dbstudio-mobile";
 
 export default function App() {
-  const [serverCode, setServerCode] = useState("DB-4821");
+  const [apiBase, setApiBase] = useState<string | null>(CONFIGURED_API_BASE);
+  const [discoveredServer, setDiscoveredServer] = useState<Service | null>(
+    null
+  );
+  const [discoveryStatus, setDiscoveryStatus] = useState(
+    "Procurando dB Studio na rede local…"
+  );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -74,10 +85,60 @@ export default function App() {
     [channels]
   );
 
+  const discoverServer = useCallback(async () => {
+    if (CONFIGURED_API_BASE) {
+      setDiscoveryStatus("Servidor configurado");
+      return;
+    }
+    if (Platform.OS === "web") {
+      setApiBase("http://127.0.0.1:3000");
+      setDiscoveryStatus("Servidor local do navegador");
+      return;
+    }
+
+    const zeroconf = new Zeroconf();
+    const permission = await zeroconf.checkLocalNetworkAccess({
+      type: "dbstudio",
+      protocol: "tcp",
+      request: true,
+    });
+    if (permission === "denied") {
+      setDiscoveryStatus("Permissão de rede local negada");
+      zeroconf.removeDeviceListeners();
+      return;
+    }
+    await new Promise<void>(resolve => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        zeroconf.stop();
+        zeroconf.removeDeviceListeners();
+        resolve();
+      };
+      zeroconf.once("resolved", (service: Service) => {
+        if (service.txt?.protocol !== "DBAU/1" || !service.port) return;
+        const address = service.ipv4[0] ?? service.addresses[0];
+        if (!address) return;
+        setDiscoveredServer(service);
+        setApiBase(`http://${address}:${service.port}`);
+        setDiscoveryStatus(`Encontrado: ${service.name}`);
+        finish();
+      });
+      zeroconf.once("error", () => {
+        setDiscoveryStatus("Nenhum Desktop encontrado na rede local");
+        finish();
+      });
+      zeroconf.scan({ type: "dbstudio", protocol: "tcp", domain: "local." });
+      setTimeout(finish, 6000);
+    });
+  }, []);
+
   const refreshStatus = useCallback(async () => {
     const startedAt = Date.now();
     try {
-      const response = await fetch(`${API_BASE}/api/udp/status`);
+      if (!apiBase) return;
+      const response = await fetch(`${apiBase}/api/udp/status`);
       if (!response.ok) throw new Error("server unavailable");
       const payload = (await response.json()) as { state: string };
       setConnected(payload.state === "listening");
@@ -86,11 +147,12 @@ export default function App() {
       setConnected(false);
       setLatency(null);
     }
-  }, []);
+  }, [apiBase]);
 
   const refreshMix = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/mix`);
+      if (!apiBase) return;
+      const response = await fetch(`${apiBase}/api/mix`);
       if (!response.ok) throw new Error("mix unavailable");
       const snapshot = (await response.json()) as MixSnapshot;
       setMaster(snapshot.master);
@@ -100,49 +162,58 @@ export default function App() {
     } catch {
       // Mantém o último estado local se a telemetria responder antes da mixagem.
     }
-  }, []);
+  }, [apiBase]);
 
-  const connectToServer = useCallback(async (token = authToken) => {
-    if (!token) return;
-    try {
-      const startedAt = Date.now();
-      const response = await fetch(`${API_BASE}/api/udp/join`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ joinCode: serverCode, musician: "Rafa" }),
-      });
-      if (!response.ok) throw new Error("join rejected");
-      const payload = (await response.json()) as UdpJoinResponse;
-      setSessionToken(payload.sessionToken);
-      setConnected(payload.state === "listening");
-      setLatency(Date.now() - startedAt);
-      await refreshMix();
-    } catch {
-      setConnected(false);
-      setSessionToken(null);
-      setLatency(null);
-    }
-  }, [authToken, refreshMix, serverCode]);
+  const connectToServer = useCallback(
+    async (token = authToken) => {
+      if (!token) return;
+      try {
+        if (!apiBase) throw new Error("Desktop não encontrado na rede local");
+        const startedAt = Date.now();
+        const response = await fetch(`${apiBase}/api/udp/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ musician: "Rafa" }),
+        });
+        if (!response.ok) throw new Error("join rejected");
+        const payload = (await response.json()) as UdpJoinResponse;
+        setSessionToken(payload.sessionToken);
+        setConnected(payload.state === "listening");
+        setLatency(Date.now() - startedAt);
+        await refreshMix();
+      } catch {
+        setConnected(false);
+        setSessionToken(null);
+        setLatency(null);
+      }
+    },
+    [apiBase, authToken, refreshMix]
+  );
 
   const login = async () => {
     setAuthBusy(true);
     setAuthError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
+      if (!apiBase) throw new Error("Desktop não encontrado na rede local");
+      const response = await fetch(`${apiBase}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, deviceId: DEVICE_ID }),
       });
-      const payload = (await response.json()) as LoginResponse & { error?: string };
+      const payload = (await response.json()) as LoginResponse & {
+        error?: string;
+      };
       if (!response.ok) throw new Error(payload.error ?? "login recusado");
       setAuthToken(payload.token);
       setPassword("");
       await connectToServer(payload.token);
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "não foi possível entrar");
+      setAuthError(
+        error instanceof Error ? error.message : "não foi possível entrar"
+      );
       setAuthToken(null);
     } finally {
       setAuthBusy(false);
@@ -150,18 +221,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    void refreshStatus();
-    void refreshMix();
+    void discoverServer().then(() => {
+      void refreshStatus();
+      void refreshMix();
+    });
     const interval = setInterval(() => {
       void refreshStatus();
       if (sessionToken) void refreshMix();
     }, 5000);
     return () => clearInterval(interval);
-  }, [refreshMix, refreshStatus, sessionToken]);
+  }, [discoverServer, refreshMix, refreshStatus, sessionToken]);
 
   const patchMix = async (path: string, body: Record<string, unknown>) => {
     if (!authToken) throw new Error("login required");
-    const response = await fetch(`${API_BASE}${path}`, {
+    if (!apiBase) throw new Error("Desktop não encontrado na rede local");
+    const response = await fetch(`${apiBase}${path}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -221,7 +295,9 @@ export default function App() {
               disabled={authBusy || !username || !password}
               onPress={() => void login()}
             >
-              <Text style={styles.primaryText}>{authBusy ? "Entrando…" : "Entrar"}</Text>
+              <Text style={styles.primaryText}>
+                {authBusy ? "Entrando…" : "Entrar"}
+              </Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -294,26 +370,21 @@ export default function App() {
               {connected ? "● online" : "● offline"}
             </Text>
           </View>
-          <Text style={styles.serverTitle}>Neon Chapel · Palco A</Text>
+          <Text style={styles.serverTitle}>
+            {discoveredServer?.name ?? "Desktop dB Studio"}
+          </Text>
           <Text style={styles.mutedText}>
-            Rede local · 5 GHz · {latency ? `${latency} ms` : "sem resposta"}
+            {discoveryStatus} · {latency ? `${latency} ms` : "sem resposta"}
           </Text>
           {!connected && (
             <View style={styles.connectRow}>
-              <TextInput
-                value={serverCode}
-                onChangeText={value => setServerCode(value.toUpperCase())}
-                style={styles.codeInput}
-                placeholder="Código"
-                placeholderTextColor="#718580"
-              />
               <Pressable
                 style={styles.primaryButton}
                 onPress={() => {
-                  void connectToServer();
+                  void discoverServer().then(() => connectToServer());
                 }}
               >
-                <Text style={styles.primaryText}>Conectar</Text>
+                <Text style={styles.primaryText}>Procurar Desktop</Text>
               </Pressable>
             </View>
           )}
